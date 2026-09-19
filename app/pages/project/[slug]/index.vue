@@ -55,6 +55,7 @@ const greeting = computed(() => {
   >
     <AgentGreeting
       :greeting="greeting"
+      :slug="slug"
       :loading="!greeting && isLoading"
     />
 
@@ -110,6 +111,7 @@ const greeting = computed(() => {
     <ChapterDeck
       v-else
       :chapters="chapters"
+      :slug="slug"
     />
 
     <footer class="px-edge py-[clamp(1.5rem,6vh,3rem)]">

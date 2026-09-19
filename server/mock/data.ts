@@ -1,6 +1,9 @@
 import type {
   Answer,
   AppointmentSlot,
+  Media,
+  Metric,
+  Panel,
   Project,
   Session,
   Unit,
@@ -59,6 +62,7 @@ export const project: Project = {
       metricLabel: 'Handover',
       metricValue: 'Q3 2026',
       hero: { src: '/images/overview.jpg', alt: 'The completed residences seen from the pool deck at midday.' },
+      question: 'What makes this the perfect first investment?',
     },
     {
       id: 'vision',
@@ -67,6 +71,7 @@ export const project: Project = {
       metricLabel: 'Journey towards',
       metricValue: 'Sustainability',
       hero: { src: '/images/vision.jpg', alt: 'Aerial view of the masterplan, its parkland ringed by low-rise housing.' },
+      question: 'What is Dubai 2040, and how does this fit into it?',
     },
     {
       id: 'location',
@@ -75,6 +80,7 @@ export const project: Project = {
       metricLabel: 'Prime',
       metricValue: 'Location',
       hero: { src: '/images/location.jpg', alt: 'A Dubai Metro train crossing the city on elevated track.' },
+      question: 'What is nearby, and how long does it take to get there?',
     },
     {
       id: 'details',
@@ -83,6 +89,7 @@ export const project: Project = {
       metricLabel: 'Starting from',
       metricValue: '1,489 sqft',
       hero: { src: '/images/details.jpg', alt: 'A fitted kitchen in pale oak and matte grey, island in the foreground.' },
+      question: 'Show me what is actually available',
     },
     {
       id: 'plans',
@@ -91,6 +98,7 @@ export const project: Project = {
       metricLabel: 'Est. value',
       metricValue: 'AED 2.8M',
       hero: { src: '/images/pricing.jpg', alt: 'A home office with a sculpted relief panel above the desk.' },
+      question: 'How does the payment plan work?',
     },
     {
       id: 'returns',
@@ -99,6 +107,7 @@ export const project: Project = {
       metricLabel: 'Rental ROI',
       metricValue: '12.73%',
       hero: { src: '/images/returns.jpg', alt: 'A living room at dusk, ring pendants over the media wall.' },
+      question: 'What sort of return should I expect?',
     },
     {
       id: 'amenities',
@@ -109,6 +118,7 @@ export const project: Project = {
       metricLabel: 'Amenity deck',
       metricValue: '1.2 acres',
       hero: { src: '/images/amenities.jpg', alt: 'The podium gardens, fountains playing beside a children’s play area.' },
+      question: 'What is it like to live here?',
     },
   ],
 }
@@ -185,55 +195,144 @@ export const instalments = schedule.map(step => ({
   amount: Math.round((project.priceFrom * step.percent) / 100),
 }))
 
-export const answer: Answer = {
-  id: 'ask-1',
-  question: 'What makes this the perfect first investment?',
-  transcript: 'The perfect first investment… ',
-  panels: [
-    {
-      kind: 'stats',
-      id: 'panel-stats',
-      hero: { src: '/images/skyline.jpg', alt: 'The Dubai skyline at sunrise, towers under construction in the foreground.' },
-      metrics: [
-        {
-          id: 'entry',
-          label: 'Investment from',
-          value: 'AED 1.68M',
-          detail: '2 bed · 1,489–2,300 sqft',
-        },
-        {
-          id: 'handover',
-          label: 'Handover',
-          value: 'Q3 2026',
-          detail: '64% completed',
-        },
-        {
-          id: 'appreciation',
-          label: 'Market appreciation',
-          value: '+17.5%',
-          detail: 'AED 2.2B in 2026 → 5.7B in 2031',
-        },
-        {
-          id: 'roi',
-          label: 'Rental ROI',
-          value: '12.73%',
-          detail: '2.2× 5-year appreciation',
-        },
-      ],
-    },
-    {
-      kind: 'units',
-      id: 'panel-units',
-      hero: { src: '/images/returns.jpg', alt: 'A living room at dusk, ring pendants over the media wall.' },
-      units,
-    },
-    {
-      kind: 'plans',
-      id: 'panel-plans',
-      hero: { src: '/images/pricing.jpg', alt: 'A home office with a sculpted relief panel above the desk.' },
-      schedule: instalments,
-    },
-  ],
+const HERO = {
+  skyline: { src: '/images/skyline.jpg', alt: 'The Dubai skyline at sunrise, towers under construction in the foreground.' },
+  overview: { src: '/images/overview.jpg', alt: 'The completed residences seen from the pool deck at midday.' },
+  vision: { src: '/images/vision.jpg', alt: 'Aerial view of the masterplan, its parkland ringed by low-rise housing.' },
+  location: { src: '/images/location.jpg', alt: 'A Dubai Metro train crossing the city on elevated track.' },
+  details: { src: '/images/details.jpg', alt: 'A fitted kitchen in pale oak and matte grey, island in the foreground.' },
+  pricing: { src: '/images/pricing.jpg', alt: 'A home office with a sculpted relief panel above the desk.' },
+  returns: { src: '/images/returns.jpg', alt: 'A living room at dusk, ring pendants over the media wall.' },
+  amenities: { src: '/images/amenities.jpg', alt: 'The podium gardens, fountains playing beside a children’s play area.' },
+} as const
+
+const statsPanel = (id: string, hero: Media, metrics: readonly Metric[]): Panel =>
+  ({ kind: 'stats', id: `panel-${id}`, hero, metrics })
+
+/**
+ * One answer per chapter, because the feed's seven arrows each ask a different
+ * question and an answer that ignored the question would make them decoration.
+ *
+ * The panel *kinds* stay the three the design draws — a grid of figures, a list
+ * of units, a payment schedule — because those are the three shapes an answer
+ * about a building takes. What changes is which of them a question earns: the
+ * broad opening question earns all three, and "how does the payment plan work"
+ * earns the schedule and the arithmetic behind it, not a tour of the gardens.
+ * The deck's pager counts the panels it is given rather than always drawing
+ * three, which is also why the comp shows three dots against two drawn panels.
+ */
+const answers: readonly Answer[] = [
+  {
+    id: 'ask-overview',
+    question: 'What makes this the perfect first investment?',
+    transcript: 'The perfect first investment is the one you can afford to hold. Here is the whole of it — the figures, what is left, and how you would pay for it.',
+    panels: [
+      statsPanel('overview-stats', HERO.skyline, [
+        { id: 'entry', label: 'Investment from', value: 'AED 1.68M', detail: '2 bed · 1,489–2,300 sqft' },
+        { id: 'handover', label: 'Handover', value: 'Q3 2026', detail: '64% completed' },
+        { id: 'appreciation', label: 'Market appreciation', value: '+17.5%', detail: 'AED 2.2B in 2026 → 5.7B in 2031' },
+        { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: '2.2× 5-year appreciation' },
+      ]),
+      { kind: 'units', id: 'panel-overview-units', hero: HERO.returns, units },
+      { kind: 'plans', id: 'panel-overview-plans', hero: HERO.pricing, schedule: instalments },
+    ],
+  },
+  {
+    id: 'ask-vision',
+    question: 'What is Dubai 2040, and how does this fit into it?',
+    transcript: 'Dubai 2040 is the city’s masterplan. Jumeirah Village Circle is one of the five centres it grows around, which is the short answer to why this plot exists.',
+    panels: [
+      statsPanel('vision', HERO.vision, [
+        { id: 'population', label: 'Planned population', value: '5.8M', detail: 'By 2040, from 3.5M today' },
+        { id: 'green', label: 'Public green space', value: '+105%', detail: 'Parks and nature reserves' },
+        { id: 'centres', label: 'Urban centres', value: '5', detail: 'JVC sits inside one of them' },
+        { id: 'commute', label: 'Within 20 minutes', value: '55%', detail: 'Of daily journeys, by 2040' },
+      ]),
+    ],
+  },
+  {
+    id: 'ask-location',
+    question: 'What is nearby, and how long does it take to get there?',
+    transcript: 'Jumeirah Village Circle sits between the two main arteries, which is why everything below is a drive rather than a journey.',
+    panels: [
+      statsPanel('location', HERO.location, [
+        { id: 'metro', label: 'Nearest metro', value: '8 min', detail: 'Dubai Internet City, by car' },
+        { id: 'marina', label: 'Dubai Marina', value: '12 min', detail: 'Via Sheikh Zayed Road' },
+        { id: 'airport', label: 'DXB airport', value: '25 min', detail: 'Al Khail Road most of the way' },
+        { id: 'schools', label: 'Schools within 10 min', value: '6', detail: 'Three rated Very Good or above' },
+      ]),
+    ],
+  },
+  {
+    id: 'ask-details',
+    question: 'Show me what is actually available',
+    transcript: 'Three units are unsold at the moment. The ground-floor one is the only one with its own pool.',
+    panels: [
+      { kind: 'units', id: 'panel-details-units', hero: HERO.details, units },
+      statsPanel('details', HERO.overview, [
+        { id: 'sizes', label: 'Sizes', value: '1,489–2,300', detail: 'Square feet, two bedrooms' },
+        { id: 'ceilings', label: 'Ceiling height', value: '3.1m', detail: 'Floor to soffit' },
+        { id: 'finish', label: 'Kitchens', value: 'Pale oak', detail: 'Bosch appliances throughout' },
+        { id: 'parking', label: 'Parking', value: '2 bays', detail: 'Allocated, in the podium' },
+      ]),
+    ],
+  },
+  {
+    id: 'ask-plans',
+    question: 'How does the payment plan work?',
+    transcript: 'Sixty per cent across construction, forty on handover. Three of the instalments are already behind you if you buy today.',
+    panels: [
+      { kind: 'plans', id: 'panel-plans-schedule', hero: HERO.pricing, schedule: instalments },
+      statsPanel('plans', HERO.skyline, [
+        { id: 'deposit', label: 'To reserve', value: 'AED 168K', detail: '10% of AED 1.68M' },
+        { id: 'during', label: 'During construction', value: '50%', detail: 'Five instalments of 10%' },
+        { id: 'handover', label: 'On handover', value: '40%', detail: 'Due Q3 2026' },
+        { id: 'fees', label: 'DLD fee', value: '4%', detail: 'Paid to the Land Department' },
+      ]),
+    ],
+  },
+  {
+    id: 'ask-returns',
+    question: 'What sort of return should I expect?',
+    transcript: 'Twelve point seven three per cent gross, on current rents. The appreciation is the larger half of the answer.',
+    panels: [
+      statsPanel('returns', HERO.returns, [
+        { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: 'Gross, on current JVC rents' },
+        { id: 'appreciation', label: 'Market appreciation', value: '+17.5%', detail: 'AED 2.2B in 2026 → 5.7B in 2031' },
+        { id: 'multiple', label: 'Over five years', value: '2.2×', detail: 'On the entry price' },
+        { id: 'occupancy', label: 'JVC occupancy', value: '94%', detail: 'Twelve-month average' },
+      ]),
+      { kind: 'plans', id: 'panel-returns-plans', hero: HERO.pricing, schedule: instalments },
+    ],
+  },
+  {
+    id: 'ask-amenities',
+    question: 'What is it like to live here?',
+    transcript: 'The podium is the answer to that. An acre and a bit of it, above the parking and below the flats.',
+    panels: [
+      statsPanel('amenities', HERO.amenities, [
+        { id: 'deck', label: 'Amenity deck', value: '1.2 acres', detail: 'Podium level, above the parking' },
+        { id: 'pool', label: 'Pools', value: '2', detail: 'Lap pool and a children’s pool' },
+        { id: 'gym', label: 'Gym', value: '24/7', detail: 'Technogym, 340 sqm' },
+        { id: 'retail', label: 'Retail below', value: '11 units', detail: 'Grocery, pharmacy, two cafés' },
+      ]),
+    ],
+  },
+]
+
+/** The one she gives when nothing in particular was asked. */
+export const answer: Answer = answers[0]!
+
+/**
+ * The answer to a question, matched on the question itself.
+ *
+ * Matching on the text rather than on a chapter id keeps /api/agent/ask honest:
+ * it takes a question, as an agent endpoint should, and anything it does not
+ * recognise still gets an answer rather than an error.
+ */
+export const answerFor = (question: string): Answer => {
+  const asked = question.trim().toLowerCase()
+  return answers.find(candidate => candidate.question.toLowerCase() === asked) ?? answer
 }
 
 /** Viewing slots, generated forward from today so the demo never goes stale. */

@@ -22,7 +22,11 @@ import type { Chapter } from '#shared/types/domain'
  * and nothing in this project renders a div.
  */
 
-const props = defineProps<{ chapters: readonly Chapter[] }>()
+const props = defineProps<{ chapters: readonly Chapter[], slug: string }>()
+
+/** Opening a chapter asks its question, and lands on the answer. */
+const answerTo = (chapter: Chapter) =>
+  `/project/${props.slug}/answer?q=${encodeURIComponent(chapter.question)}`
 
 const active = ref(0)
 
@@ -76,6 +80,7 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
       :class="{ 'is-open': index === active }"
     >
       <ChapterCard
+        :answer-to="answerTo(chapter)"
         :chapter="chapter"
         :index="index + 1"
         :total="chapters.length"

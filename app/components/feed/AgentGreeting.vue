@@ -17,10 +17,23 @@ import TheOrb from '~/components/orb/TheOrb.vue'
  * containing block, or against the parent font size, and neither is the frame.
  */
 
-defineProps<{
+const props = defineProps<{
   greeting: string | null
+  slug: string
   loading?: boolean
 }>()
+
+/*
+ * Two doors into one room, not two rooms. The deck is where her answer is and
+ * where the next question is asked, so both land there; the microphone arrives
+ * with its control focused, ready for one press.
+ *
+ * It arrives primed rather than recording. `getUserMedia` needs a live user
+ * gesture and this click is spent on the navigation, so opening the microphone
+ * on the other side would fail on Safari and, where it worked, would be a
+ * recording nobody started on the screen they are now looking at.
+ */
+const deck = computed(() => `/project/${props.slug}/answer`)
 </script>
 
 <template>
@@ -77,7 +90,7 @@ defineProps<{
     >
       <NuxtLink
         class="disc"
-        to="/ask"
+        :to="deck"
       >
         <img
           src="/icons/transcript.svg"
@@ -85,12 +98,12 @@ defineProps<{
           width="24"
           height="24"
         >
-        <em class="visually-hidden">Read what Rechitta said</em>
+        <em class="visually-hidden">Read Rechitta’s answer</em>
       </NuxtLink>
 
       <NuxtLink
         class="disc"
-        to="/ask"
+        :to="`${deck}?speak=1`"
       >
         <img
           src="/icons/microphone.svg"
@@ -98,7 +111,7 @@ defineProps<{
           width="24"
           height="24"
         >
-        <em class="visually-hidden">Speak to Rechitta</em>
+        <em class="visually-hidden">Ask Rechitta something, out loud</em>
       </NuxtLink>
     </nav>
   </header>

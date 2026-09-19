@@ -56,6 +56,59 @@ wherever tooling can enforce them, and by review where it cannot.
 - Helper text sits between the label and the control. No placeholder-as-label.
 - Never disable a control with the reason hidden in a tooltip.
 
+## Accessibility — WCAG 2.2 Level AA
+
+This is a conformance target, not a nice-to-have. A screen that fails any of
+these is not done.
+
+### Perceivable
+- Every image has an `alt`. Decorative images get `alt=""` and are kept out of
+  the accessibility tree; an image whose meaning is already in adjacent text is
+  decorative. Purely decorative layers are CSS, not markup.
+- Text contrast is at least **4.5:1** (3:1 at 24px, or 19px bold). UI controls
+  and the visible boundary of a component are at least **3:1**.
+- Text over photography always sits on a scrim that guarantees the ratio — never
+  on the raw image.
+- Nothing is conveyed by colour alone; a dot or a state colour is always paired
+  with text.
+- The layout reflows at 320px wide and at 400% zoom with no horizontal scroll,
+  and survives 200% text-only zoom.
+
+### Operable
+- Everything reachable by mouse is reachable by keyboard, in a logical order,
+  with no traps. Custom controls handle Enter, Space, arrows and Escape as their
+  ARIA pattern requires.
+- Focus is always visible, at 3:1 against its background, and never clipped by
+  an ancestor's `overflow`.
+- A skip link precedes the main landmark.
+- Touch targets are at least **24×24px**, and 44×44px wherever there is room.
+- No animation that flashes more than three times a second. Motion that is not
+  essential stops under `prefers-reduced-motion`.
+- Nothing depends on a drag, a path gesture, or a device tilt without a simple
+  alternative.
+
+### Understandable
+- `<html lang>` is set. One `<h1>` per page and heading levels never skip.
+- Every input has a real `<label>`; a placeholder is never the label.
+- Errors name the field and say how to fix it, are announced to assistive
+  technology, and never rely on colour alone.
+- Navigation and naming stay consistent between screens.
+
+### Robust
+- Native elements first; ARIA only where no element exists. An incorrect ARIA
+  role is worse than none.
+- A control's accessible name always contains its visible label.
+- Asynchronous changes — a loaded panel, a submitted form, a failure — are
+  announced through a live region.
+- Every state carries `aria-busy`, `aria-invalid`, `aria-expanded` or
+  `aria-current` as appropriate.
+
+### How it gets checked
+- Keyboard-only pass on every screen before it is committed.
+- Screen-reader pass (VoiceOver) on anything with live or dynamic content.
+- Automated axe pass in the end-to-end suite; zero violations is the bar.
+- Contrast computed against the real token values, not eyeballed.
+
 ## Testing
 
 - Every feature branch ships its own tests. A branch with no test is not done.

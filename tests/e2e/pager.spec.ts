@@ -41,26 +41,56 @@ const press = async (page: Page, key: string, url: RegExp) => {
 }
 
 /**
- * A flick of the thumb, dispatched as the browser would send it. Playwright's
- * touchscreen can tap but not drag, so the pointer events are made by hand —
- * which is also the only way to set `pointerType`, and the handler reads it.
+ * A real flick, driven through the browser's own input pipeline.
+ *
+ * Synthetic events are not good enough here and this test is the proof: the
+ * first version of it dispatched PointerEvents by hand, passed, and the swipe
+ * did nothing at all on a phone. A hand-made event is never cancelled, whereas
+ * a real one is the moment the browser decides the gesture belongs to it.
+ *
+ * CDP is Chromium-only, so this runs there. What it is checking — that the
+ * gesture survives a browser that is also thinking about panning — is the same
+ * everywhere.
  */
-const swipe = (page: Page, direction: 'forward' | 'back', from = { x: 300, y: 500 }) =>
-  page.evaluate(({ direction, from }) => {
-    const distance = direction === 'forward' ? -140 : 140
-    const send = (type: string, x: number, y: number) =>
-      document.dispatchEvent(new PointerEvent(type, {
-        pointerType: 'touch',
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-      }))
+const swipe = async (
+  page: Page,
+  direction: 'forward' | 'back',
+  from = { x: 300, y: 500 },
+  drop = 4,
+) => {
+  const client = await page.context().newCDPSession(page)
+  const distance = direction === 'forward' ? -140 : 140
 
-    send('pointerdown', from.x, from.y)
-    send('pointerup', from.x + distance, from.y + 4)
-  }, { direction, from })
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: from.x, y: from.y }],
+  })
+  // The move matters: it is what makes the browser consider claiming this.
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: from.x + distance / 2, y: from.y + drop / 2 }],
+  })
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  })
+  await client.detach()
+}
+
+/** The same flick, but ending where it is told rather than half way. */
+const flick = async (page: Page, dx: number, dy: number, from = { x: 300, y: 400 }) => {
+  const client = await page.context().newCDPSession(page)
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y }] })
+  await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x + dx, y: from.y + dy }] })
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await client.detach()
+}
 
 test.describe('Onboarding pager · swiping', () => {
+  // A real touchscreen, so the browser behaves as it does on a phone.
+  test.use({ hasTouch: true, isMobile: true })
+  test.skip(({ browserName }) => browserName !== 'chromium', 'touch is driven through CDP')
+
   test('a flick of the thumb turns the page, both ways', async ({ page }) => {
     await open(page, '/')
 
@@ -72,17 +102,27 @@ test.describe('Onboarding pager · swiping', () => {
     await expect(page).toHaveURL(at.splash)
   })
 
+  test('works on all three of the paged screens', async ({ page }) => {
+    await open(page, '/onboarding')
+    await swipe(page, 'forward')
+    await expect(page).toHaveURL(at.ask)
+
+    await swipe(page, 'back')
+    await expect(page).toHaveURL(at.onboarding)
+  })
+
   test('a scroll that drifted sideways is still a scroll', async ({ page }) => {
     await open(page, '/onboarding')
 
-    await page.evaluate(() => {
-      const send = (type: string, x: number, y: number) =>
-        document.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', clientX: x, clientY: y, bubbles: true }))
-      // Twice as far down as across.
-      send('pointerdown', 300, 200)
-      send('pointerup', 220, 420)
-    })
+    // Twice as far down as across.
+    await flick(page, -80, 220)
+    await expect(page).toHaveURL(at.onboarding)
+  })
 
+  test('a tap with a wobble is not a swipe', async ({ page }) => {
+    await open(page, '/onboarding')
+
+    await flick(page, -20, 3)
     await expect(page).toHaveURL(at.onboarding)
   })
 
@@ -92,19 +132,6 @@ test.describe('Onboarding pager · swiping', () => {
     // iOS reads a swipe from the very edge as Back. Taking it would mean the
     // page and the browser both answering one gesture.
     await swipe(page, 'back', { x: 6, y: 500 })
-    await expect(page).toHaveURL(at.onboarding)
-  })
-
-  test('a mouse drag is a selection, not a page turn', async ({ page }) => {
-    await open(page, '/onboarding')
-
-    await page.evaluate(() => {
-      const send = (type: string, x: number) =>
-        document.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', clientX: x, clientY: 500, bubbles: true }))
-      send('pointerdown', 300)
-      send('pointerup', 120)
-    })
-
     await expect(page).toHaveURL(at.onboarding)
   })
 

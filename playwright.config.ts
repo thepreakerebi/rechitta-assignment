@@ -34,6 +34,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'bun run dev',
+    // The devtools overlay is not part of the product and fails rules of its
+    // own; see nuxt.config.ts.
+    env: { NUXT_DEVTOOLS: 'false' },
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -19,7 +19,7 @@ import type { Session } from '#shared/types/domain'
  * The device status bar is not reproduced, for the same reason as on the splash.
  */
 
-const NEXT_PATH = '/project/berkeley-square-north'
+const NEXT_PATH = '/ask'
 
 useSeoMeta({
   title: 'Speak to Discover',
@@ -87,11 +87,11 @@ const advanceLabel = computed(() => {
 
 const RECOVERY: Partial<Record<string, string>> = {
   blocked:
-    'Microphone access is blocked. You can allow it from the icon in your browser’s address bar — or carry on and read the briefing instead.',
+    'Microphone access is blocked. You can allow it from the icon in your browser’s address bar — or carry on and ask your question in writing instead.',
   unsupported:
-    'This browser cannot reach a microphone. Carry on and read the briefing instead.',
+    'This browser cannot reach a microphone. Carry on and ask your question in writing instead.',
   unavailable:
-    'No microphone was found. Connect one and reload to use voice, or carry on and read the briefing.',
+    'No microphone was found. Connect one and reload to use voice, or carry on and ask in writing.',
 }
 
 const recovery = computed(() => RECOVERY[mic.status.value])
@@ -106,14 +106,14 @@ const recovery = computed(() => RECOVERY[mic.status.value])
  * becomes a plain way forward, and the step is theirs to take.
  */
 const outcome = computed(() => {
-  if (allowed.value) return 'Microphone connected. Rechitta will listen only while you hold the button on the next screen.'
+  if (allowed.value) return 'Microphone connected. Rechitta listens only while you ask her to, on the next screen, and never records.'
   return recovery.value
 })
 
 /**
- * Voice is an enhancement, never a gate: whatever the browser answers, the
- * briefing is still there. A refusal stops once to explain itself, and the
- * second press goes on regardless.
+ * Voice is an enhancement, never a gate: whatever the browser answers, the next
+ * screen is still there and the question can still be asked in writing. A
+ * refusal stops once to explain itself, and the second press goes on regardless.
  */
 const advance = async () => {
   if (allowed.value || settled.value) return navigateTo(NEXT_PATH)
@@ -132,11 +132,14 @@ const advance = async () => {
   }
 }
 
-onMounted(async () => {
-  await mic.peekPermission()
-  // A returning visitor has already answered; do not ask a second time.
-  if (mic.hasPriorConsent.value) allowed.value = true
-})
+// A returning visitor has already answered, and so has someone who grants it
+// from the address bar while this screen is open. Either way, stop offering to
+// ask for something already given.
+watch(mic.hasPriorConsent, (consented) => {
+  if (consented) allowed.value = true
+}, { immediate: true })
+
+onMounted(() => { void mic.peekPermission() })
 </script>
 
 <template>
@@ -240,7 +243,7 @@ onMounted(async () => {
           :to="NEXT_PATH"
         >
           Skip
-          <em class="visually-hidden">, and read the briefing without voice</em>
+          <em class="visually-hidden">, and ask your question without voice</em>
         </NuxtLink>
 
         <OnboardingPager :current="2" />

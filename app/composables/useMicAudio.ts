@@ -71,6 +71,15 @@ export const useMicAudio = () => {
   let lastReadAt = 0
   let listeningSince = 0
 
+  /**
+   * The live permission handle, kept so the interface can follow a decision made
+   * outside it. Permission is not a question asked once: it is changed from the
+   * browser's own address bar, and from any other tab on this origin. A screen
+   * that reads it only on mount goes on offering to ask for something it already
+   * has — or claims to be refused long after the refusal was lifted.
+   */
+  let permission: PermissionStatus | null = null
+
   const releaseGraph = () => {
     source?.disconnect()
     analyser?.disconnect()
@@ -83,6 +92,25 @@ export const useMicAudio = () => {
     context = null
     spectrum = new Uint8Array(0)
     smoothed = SILENT_DRIVE
+  }
+
+  const syncPermission = () => {
+    if (!permission) return
+    hasPriorConsent.value = permission.state === 'granted'
+
+    if (permission.state === 'denied') {
+      // Revoked mid-session: stop capturing immediately rather than waiting for
+      // the next teardown, and say so.
+      releaseGraph()
+      status.value = 'blocked'
+      return
+    }
+
+    // Only an explicit grant lifts a refusal. Chromium reports 'prompt' again
+    // after a request is dismissed, and reading that as consent would erase a
+    // refusal this session actually observed — leaving the screen offering to
+    // ask for something it has already been told it cannot have.
+    if (permission.state === 'granted' && status.value === 'blocked') status.value = 'idle'
   }
 
   /**
@@ -98,6 +126,8 @@ export const useMicAudio = () => {
 
       try {
         const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+        permission = result
+        result.addEventListener('change', syncPermission)
         hasPriorConsent.value = result.state === 'granted'
         return result.state === 'denied' ? 'blocked' : 'idle'
       }
@@ -200,7 +230,11 @@ export const useMicAudio = () => {
     return mixDrive(idle, smoothed, handover)
   }
 
-  onScopeDispose(() => releaseGraph())
+  onScopeDispose(() => {
+    permission?.removeEventListener('change', syncPermission)
+    permission = null
+    releaseGraph()
+  })
 
   return {
     status: readonly(status),

@@ -10,6 +10,7 @@ import type { WatchSource } from 'vue'
  *     URL is meant to make the page fail, and it cannot do that unless the
  *     query reaches the API. Without this, every state is only reachable by
  *     hand-editing an API URL, which is the same as not being reachable.
+ *     The rule itself lives in useScenarioQuery, because the POSTs need it too.
  *
  *  2. Session-scoped content is fetched on the client, not rendered on the
  *     server. The shell paints immediately and the data arrives into a
@@ -31,15 +32,7 @@ export const useApiFetch = <T>(
   url: string | (() => string),
   options: ApiFetchOptions = {},
 ) => {
-  const route = useRoute()
-
-  const query = computed(() => {
-    const { fail, latency } = route.query
-    return {
-      ...(typeof fail === 'string' ? { fail } : {}),
-      ...(typeof latency === 'string' ? { latency } : {}),
-    }
-  })
+  const query = useScenarioQuery()
 
   return useFetch<T>(url, {
     lazy: true,

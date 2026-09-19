@@ -68,9 +68,36 @@ const draft = computed(() => ({ name: name.value, email: email.value, slot: slot
 const errors = computed<BookingErrors>(() => (submitted.value ? validateBooking(draft.value) : {}))
 
 const cta = ref<HTMLButtonElement | null>(null)
+const card = ref<HTMLElement | null>(null)
+const fields = ref<HTMLElement | null>(null)
+
+/**
+ * Brings the opened form into view.
+ *
+ * The card is the last thing on a four-thousand-pixel page, so pressing the
+ * button usually reveals a form mostly below the fold and leaves someone to
+ * scroll for it themselves.
+ *
+ * The alignment is decided before the panel has finished opening, from the
+ * height the fields *will* take: they are clipped rather than resized while the
+ * row is closed, so `scrollHeight` already knows. Waiting for the transition
+ * instead would mean six hundred milliseconds of nothing happening.
+ *
+ * `behavior` is deliberately left off. Its default defers to the page's own
+ * `scroll-behavior`, which is smooth — and which the reduced-motion block
+ * already turns off, so respecting that preference costs nothing here.
+ */
+const reveal = async () => {
+  await nextTick()
+  if (!card.value) return
+
+  const height = card.value.getBoundingClientRect().height + (fields.value?.scrollHeight ?? 0)
+  card.value.scrollIntoView({ block: height <= window.innerHeight ? 'center' : 'start' })
+}
 
 const expand = async () => {
   open.value = true
+  reveal()
   await loadSlots()
 }
 
@@ -159,7 +186,7 @@ const onSubmit = () => (open.value ? submit() : expand())
 
 const label = computed(() => {
   if (submitting.value) return 'Confirming…'
-  return open.value ? 'Confirm booking' : 'Book Appointment'
+  return open.value ? 'Confirm booking' : 'Book appointment'
 })
 
 const toast = computed(() =>
@@ -171,6 +198,7 @@ const toast = computed(() =>
 
 <template>
   <section
+    ref="card"
     class="request"
     aria-labelledby="viewing-heading"
   >
@@ -233,7 +261,10 @@ const toast = computed(() =>
         >
           <legend class="visually-hidden">Your viewing details</legend>
 
-          <ul class="fields">
+          <ul
+            ref="fields"
+            class="fields"
+          >
             <li>
               <fieldset
                 ref="slotGroup"

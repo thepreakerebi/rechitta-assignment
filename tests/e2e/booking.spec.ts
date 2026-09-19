@@ -84,6 +84,27 @@ test.describe('Booking · opening', () => {
     await expect(page.getByLabel('Your name')).toHaveAttribute('aria-invalid', 'false')
   })
 
+  test('brings the opened form into view rather than leaving it below the fold', async ({ page }) => {
+    for (const size of [PHONE, { width: 1440, height: 900 }]) {
+      await page.setViewportSize(size)
+      await page.goto(FEED)
+      await page.waitForLoadState('networkidle')
+
+      const button = page.getByRole('button', { name: /book appointment/i })
+      await button.scrollIntoViewIfNeeded()
+      await button.click()
+
+      // The card is the last thing on a four-thousand-pixel page, so opening it
+      // otherwise reveals a form mostly below the fold.
+      await expect.poll(async () => page.evaluate(() => {
+        const card = document.querySelector('main section[aria-labelledby="viewing-heading"]')!
+        const box = card.getBoundingClientRect()
+        const visible = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0)
+        return Math.round((visible / Math.min(box.height, window.innerHeight)) * 100)
+      }), { timeout: 10_000 }).toBeGreaterThan(95)
+    }
+  })
+
   test('the times are not fetched until they are asked for', async ({ page }) => {
     const calls: string[] = []
     page.on('request', (request) => {
@@ -122,7 +143,7 @@ test.describe('Booking · closing', () => {
 
     await dismiss(page).click()
 
-    await expect(cta(page)).toHaveText(/Book Appointment/)
+    await expect(cta(page)).toHaveText(/Book appointment/)
     await expect(cta(page)).toHaveAttribute('aria-expanded', 'false')
     await expect(panel).toHaveAttribute('inert', '')
     await expect.poll(async () => (await panel.boundingBox())!.height).toBeLessThan(2)
@@ -135,7 +156,7 @@ test.describe('Booking · closing', () => {
     await page.getByLabel('Your name').fill('Aryaman Shah')
     await page.keyboard.press('Escape')
 
-    await expect(cta(page)).toHaveText(/Book Appointment/)
+    await expect(cta(page)).toHaveText(/Book appointment/)
   })
 
   test('keeps what was typed, and drops the telling-off', async ({ page }) => {

@@ -40,6 +40,85 @@ const press = async (page: Page, key: string, url: RegExp) => {
   await expect(page.locator('nav[aria-label="Onboarding progress"]')).toHaveCount(1)
 }
 
+/**
+ * A flick of the thumb, dispatched as the browser would send it. Playwright's
+ * touchscreen can tap but not drag, so the pointer events are made by hand —
+ * which is also the only way to set `pointerType`, and the handler reads it.
+ */
+const swipe = (page: Page, direction: 'forward' | 'back', from = { x: 300, y: 500 }) =>
+  page.evaluate(({ direction, from }) => {
+    const distance = direction === 'forward' ? -140 : 140
+    const send = (type: string, x: number, y: number) =>
+      document.dispatchEvent(new PointerEvent(type, {
+        pointerType: 'touch',
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+      }))
+
+    send('pointerdown', from.x, from.y)
+    send('pointerup', from.x + distance, from.y + 4)
+  }, { direction, from })
+
+test.describe('Onboarding pager · swiping', () => {
+  test('a flick of the thumb turns the page, both ways', async ({ page }) => {
+    await open(page, '/')
+
+    await swipe(page, 'forward')
+    await expect(page).toHaveURL(at.onboarding)
+    await expect(page.locator('nav[aria-label="Onboarding progress"]')).toHaveCount(1)
+
+    await swipe(page, 'back')
+    await expect(page).toHaveURL(at.splash)
+  })
+
+  test('a scroll that drifted sideways is still a scroll', async ({ page }) => {
+    await open(page, '/onboarding')
+
+    await page.evaluate(() => {
+      const send = (type: string, x: number, y: number) =>
+        document.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', clientX: x, clientY: y, bubbles: true }))
+      // Twice as far down as across.
+      send('pointerdown', 300, 200)
+      send('pointerup', 220, 420)
+    })
+
+    await expect(page).toHaveURL(at.onboarding)
+  })
+
+  test('leaves the edges to the browser’s own back gesture', async ({ page }) => {
+    await open(page, '/onboarding')
+
+    // iOS reads a swipe from the very edge as Back. Taking it would mean the
+    // page and the browser both answering one gesture.
+    await swipe(page, 'back', { x: 6, y: 500 })
+    await expect(page).toHaveURL(at.onboarding)
+  })
+
+  test('a mouse drag is a selection, not a page turn', async ({ page }) => {
+    await open(page, '/onboarding')
+
+    await page.evaluate(() => {
+      const send = (type: string, x: number) =>
+        document.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', clientX: x, clientY: 500, bubbles: true }))
+      send('pointerdown', 300)
+      send('pointerup', 120)
+    })
+
+    await expect(page).toHaveURL(at.onboarding)
+  })
+
+  test('stops at the ends rather than wrapping', async ({ page }) => {
+    await open(page, '/')
+    await swipe(page, 'back')
+    await expect(page).toHaveURL(at.splash)
+
+    await open(page, '/ask')
+    await swipe(page, 'forward')
+    await expect(page).toHaveURL(at.ask)
+  })
+})
+
 test.describe('Onboarding pager · keyboard', () => {
   test('moves forward and back on both axes', async ({ page }) => {
     await open(page, '/')
@@ -101,7 +180,7 @@ test.describe('Onboarding pager · keyboard', () => {
   test('tells assistive technology the shortcut exists', async ({ page }) => {
     await open(page, '/onboarding')
 
-    await expect(page.getByText(/Use the arrow keys to move between the three steps/))
+    await expect(page.getByText(/Use the arrow keys, or swipe sideways, to move between the three steps/))
       .toBeAttached()
   })
 })

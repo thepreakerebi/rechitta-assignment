@@ -181,6 +181,29 @@ test.describe('04 · Deck · paging', () => {
     await expect.poll(() => showing(page)).toBe(0)
   })
 
+  test('a thumb swipes between panels, natively', async ({ page }) => {
+    await open(page)
+
+    // The track is a real scroll-snap container, so touch is the browser's job
+    // rather than something rebuilt in script. This asserts it is genuinely
+    // swipeable — overflowing, snapping, and scrollable by touch.
+    const track = await page.locator('main .track').evaluate((el) => {
+      const style = getComputedStyle(el)
+      return {
+        overflowX: style.overflowX,
+        snap: style.scrollSnapType,
+        touchAction: style.touchAction,
+        overflows: el.scrollWidth > el.clientWidth,
+      }
+    })
+
+    expect(track.overflows).toBe(true)
+    expect(track.overflowX).toBe('auto')
+    expect(track.snap).toContain('mandatory')
+    // Nothing has taken the horizontal gesture away from it.
+    expect(['auto', 'pan-x', 'manipulation']).toContain(track.touchAction)
+  })
+
   test('the dots follow a swipe rather than lagging a gesture behind', async ({ page }) => {
     await open(page)
 

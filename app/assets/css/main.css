@@ -30,6 +30,12 @@
   /* The glass chips and the privacy note share one surface. */
   --color-bubble: rgb(42 42 42 / 0.4);
 
+  /* The toast floats over the screen rather than in the column, so unlike the
+     inline surfaces it has to be opaque enough to read against whatever it
+     happens to cover — including the orb. */
+  --color-gold-toast: rgb(30 24 12 / 0.92);
+  --color-alert-toast: rgb(34 14 14 / 0.92);
+
   --color-surface: rgb(255 255 255 / 0.04);
   --color-surface-raised: rgb(255 255 255 / 0.07);
   --color-surface-scrim: rgb(0 0 0 / 0.55);

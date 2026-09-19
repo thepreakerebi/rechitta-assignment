@@ -104,9 +104,10 @@ test.describe('03 · First words · the microphone', () => {
       (await page.evaluate(() => (window as unknown as { __mic: { live: number } }).__mic)).live,
     ).toBe(1)
 
-    await primary(page).click()
+    await page.getByRole('button', { name: 'Stop listening' }).click()
 
-    // Nothing should still be capturing while the answer is in flight.
+    // Stopping is what sends the question, so nothing may still be capturing
+    // while the answer is in flight.
     await expect.poll(async () =>
       (await page.evaluate(() => (window as unknown as { __mic: { live: number } }).__mic)).live,
     ).toBe(0)
@@ -135,8 +136,9 @@ test.describe('03 · First words · the microphone', () => {
     // permission round trip is a browser decision rather than a render.
     await expect(note.first()).toBeVisible({ timeout: 20_000 })
 
+    // Voice was never a gate: the way forward is still there.
     await primary(page).click()
-    await expect(answerPanel(page)).toContainText(/Rechitta answered/i)
+    await expect(page).toHaveURL(BRIEFING)
   })
 })
 
@@ -176,38 +178,55 @@ test.describe('03 · First words', () => {
 })
 
 test.describe('03 · First words · states', () => {
-  test('shows a skeleton while she thinks, never the word Loading', async ({ page }) => {
+  /**
+   * Speaking is what asks her now, so every state below needs a microphone.
+   * That is the screen being honest rather than the test being awkward: this
+   * is a voice screen, and without a voice there is nothing to answer.
+   */
+  const speakThenStop = async (page: Page) => {
+    await page.getByRole('button', { name: 'Speak' }).click()
+    await page.getByRole('button', { name: 'Stop listening' }).click()
+  }
+
+  test('shows a skeleton while she thinks, never the word Loading', async ({ page, context }) => {
+    needsFakeDevice()
+    await context.grantPermissions(['microphone'])
     await open(page, '/ask?latency=1200')
 
-    await primary(page).click()
+    await speakThenStop(page)
 
     const panel = answerPanel(page)
     await expect(panel).toContainText(/Rechitta is thinking/i)
     await expect(panel.locator('i')).toHaveCount(3)
     await expect(page.locator('main')).not.toContainText(/loading/i)
 
-    // The control says it is busy rather than pretending to be idle.
-    await expect(primary(page)).toHaveAttribute('aria-busy', 'true')
-    await expect(primary(page)).toBeDisabled()
+    // The region says it is busy rather than pretending to be settled.
+    await expect(page.locator('main > section > section[aria-live]'))
+      .toHaveAttribute('aria-busy', 'true')
 
     await expect(panel).toContainText(/Rechitta answered/i, { timeout: 15_000 })
   })
 
-  test('succeeds into a way forward, rather than a dead end', async ({ page }) => {
+  test('answers, and the way forward stays a plain Next', async ({ page, context }) => {
+    needsFakeDevice()
+    await context.grantPermissions(['microphone'])
     await open(page, '/ask')
 
-    await primary(page).click()
+    await speakThenStop(page)
     await expect(answerPanel(page)).toContainText(/Rechitta answered/i)
 
-    await expect(primary(page)).toHaveText(/^See the briefing/)
+    // One control, one job. It never renames itself into a second one.
+    await expect(primary(page)).toHaveText('Next')
     await primary(page).click()
     await expect(page).toHaveURL(BRIEFING)
   })
 
-  test('has something to say when there is nothing to show', async ({ page }) => {
+  test('has something to say when there is nothing to show', async ({ page, context }) => {
+    needsFakeDevice()
+    await context.grantPermissions(['microphone'])
     await open(page, '/ask?fail=empty')
 
-    await primary(page).click()
+    await speakThenStop(page)
 
     const panel = answerPanel(page)
     await expect(panel).toContainText(/Nothing to show yet/i)
@@ -215,26 +234,32 @@ test.describe('03 · First words · states', () => {
     await expect(panel).toContainText(/carry on/i)
   })
 
-  test('fails without leaking the server, and offers the retry', async ({ page }) => {
+  test('fails without leaking the server, and offers the retry', async ({ page, context }) => {
+    needsFakeDevice()
+    await context.grantPermissions(['microphone'])
     await open(page, '/ask?fail=server')
 
-    await primary(page).click()
+    await speakThenStop(page)
 
     const panel = answerPanel(page)
     await expect(panel).toContainText(/could not answer/i)
     // The backend's own message must never reach the interface.
     await expect(panel).not.toContainText(/500|Internal Server Error/i)
-    await expect(primary(page)).toHaveText(/^Try again/)
+
+    // The recovery sits with the failure, not in the footer — Next means Next.
+    await expect(panel.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(primary(page)).toHaveText('Next')
   })
 
-  test('a timeout is handled the same way as a failure', async ({ page }) => {
+  test('a timeout is handled the same way as a failure', async ({ page, context }) => {
+    needsFakeDevice()
+    await context.grantPermissions(['microphone'])
     await open(page, '/ask?fail=timeout')
 
-    await primary(page).click()
+    await speakThenStop(page)
     await expect(answerPanel(page)).toContainText(/could not answer/i)
     await expect(answerPanel(page)).not.toContainText(/504|Gateway/i)
   })
-
 })
 
 test.describe('03 · First words · layout and keyboard', () => {

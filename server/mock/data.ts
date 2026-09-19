@@ -145,7 +145,7 @@ export const session: Session = {
     name: 'Sara Rahman',
     company: 'Prestige Group',
     role: 'Senior Advisor',
-    avatar: { src: '/images/broker.jpg', alt: 'Sara Rahman' },
+    avatar: { src: '/images/broker.webp', alt: 'Sara Rahman' },
     note: '1 new note for you',
   },
   projectSlug: PROJECT_SLUG,

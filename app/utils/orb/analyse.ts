@@ -83,12 +83,22 @@ export const readDriveFrom = (
 ------------------------------------------------------------------------- */
 
 /**
- * Above this level, the frame is taken to carry speech rather than a room.
+ * How much of a frame is voice.
  *
- * Tuned against the shaping above, which already lifts a quiet voice: below it
- * are the fan, the street and the floor the analyser never quite reaches.
+ * Deliberately not the overall level, which is the mean across every bin the
+ * analyser has — including everything above 8 kHz, where a voice puts almost
+ * nothing and a laptop microphone puts less. Averaged over the whole spectrum,
+ * a clearly spoken sentence reads at a few hundredths and two seconds of speech
+ * measure as thirty-four milliseconds of it. Speech is looked for where speech
+ * is: the fundamentals in the bass band and the formants in the mid.
  */
-export const VOICE_FLOOR = 0.18
+export const voicedEnergy = (drive: OrbDrive): number => Math.max(drive.bass, drive.mid)
+
+/**
+ * Above this, the frame is taken to carry speech rather than a room. Below it
+ * are the fan, the street, and the floor the analyser never quite reaches.
+ */
+export const VOICE_FLOOR = 0.14
 
 /** What one open microphone added up to. */
 export interface UtteranceTally {
@@ -115,18 +125,24 @@ export const tallyFrame = (
   tally: UtteranceTally,
   drive: OrbDrive,
   deltaMs: number,
-): UtteranceTally => ({
-  frames: tally.frames + 1,
-  elapsedMs: tally.elapsedMs + deltaMs,
-  voicedMs: tally.voicedMs + (drive.level >= VOICE_FLOOR ? deltaMs : 0),
-  peak: Math.max(tally.peak, drive.level),
-  sum: {
-    bass: tally.sum.bass + drive.bass,
-    mid: tally.sum.mid + drive.mid,
-    treble: tally.sum.treble + drive.treble,
-    level: tally.sum.level + drive.level,
-  },
-})
+): UtteranceTally => {
+  const voice = voicedEnergy(drive)
+
+  return {
+    frames: tally.frames + 1,
+    elapsedMs: tally.elapsedMs + deltaMs,
+    voicedMs: tally.voicedMs + (voice >= VOICE_FLOOR ? deltaMs : 0),
+    // The loudest the voice got, by the same measure — so the floor below which
+    // nothing was said and the peak are read off the same thing.
+    peak: Math.max(tally.peak, voice),
+    sum: {
+      bass: tally.sum.bass + drive.bass,
+      mid: tally.sum.mid + drive.mid,
+      treble: tally.sum.treble + drive.treble,
+      level: tally.sum.level + drive.level,
+    },
+  }
+}
 
 /**
  * The tally as the agent will receive it: averages rather than sums, everything

@@ -5,6 +5,7 @@ import {
   readDriveFrom,
   summarise,
   tallyFrame,
+  voicedEnergy,
 } from '../../app/utils/orb/analyse'
 import type { SpectrumSource } from '../../app/utils/orb/analyse'
 import type { OrbDrive } from '../../app/utils/orb/drive'
@@ -48,6 +49,30 @@ describe('readDriveFrom', () => {
     const lowOnly = readDriveFrom(analyserOf(bin => (bin < 6 ? 255 : 0)), buffer())
 
     expect(lowOnly.bass).toBeGreaterThan(lowOnly.treble)
+  })
+})
+
+describe('voicedEnergy', () => {
+  /*
+   * The overall level is the mean across every bin the analyser has, most of
+   * which a voice never touches. Measured that way, two seconds of speech
+   * counted as thirty-four milliseconds of it and the agent heard silence.
+   */
+  it('hears a voice that the overall level misses', () => {
+    const speech = { bass: 0.42, mid: 0.51, treble: 0.11, level: 0.03 }
+
+    expect(voicedEnergy(speech)).toBeGreaterThan(VOICE_FLOOR)
+    expect(speech.level).toBeLessThan(VOICE_FLOOR)
+  })
+
+  it('hears nothing in a spectrum with nothing in it', () => {
+    expect(voicedEnergy({ bass: 0, mid: 0, treble: 0, level: 0 })).toBe(0)
+  })
+
+  // Cymbals, keyboard clatter, a chair on a hard floor.
+  it('does not mistake treble alone for speech', () => {
+    expect(voicedEnergy({ bass: 0.02, mid: 0.03, treble: 0.95, level: 0.3 }))
+      .toBeLessThan(VOICE_FLOOR)
   })
 })
 

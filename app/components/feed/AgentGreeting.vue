@@ -275,12 +275,15 @@ const deck = computed(() => `/project/${props.slug}/answer`)
    the orb. */
 .speech {
   position: relative;
-  z-index: 1;
+  /* Above the gradient that takes the orb's lower half, so the last line is
+     read rather than faded out with the orb behind it. */
+  z-index: 3;
   inline-size: 63%;
   margin-inline: auto;
-  margin-block-start: calc(var(--frame) * 0.295);
-  /* 12px in a 400 group, held between legible bounds at the extremes. */
-  font-size: clamp(0.72rem, calc(var(--frame) * 0.031), 1.05rem);
+  margin-block-start: calc(var(--frame) * 0.345);
+  /* The comp's 12px, held at 12px: this block sits on the orb's face, and
+     growing it with the frame pushes the last line past the orb's edge. */
+  font-size: 0.75rem;
 }
 
 /*

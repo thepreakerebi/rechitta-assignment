@@ -49,6 +49,21 @@
   --color-bubble-text: rgb(243 244 246 / 0.9);
   --color-note-text: #9ca3af;
 
+  /* The feed ---------------------------------------------------------------
+     The chapter cards sit on photography, so their palette runs warmer than
+     the rest of the app: a bone white rather than pure white, and a muted warm
+     grey for the metric labels. Read off the comp, not invented.            */
+  --color-bone: #f2efe9;
+  --color-bone-muted: rgb(217 211 199 / 0.6);
+  /* The cyan the card's overlay starts from before it falls away to black. */
+  --color-chapter-tint: rgb(0 240 255 / 0.2);
+  --color-chapter-foot: #0a0a0a;
+  /* The two washes the greeting fades into, above and below. */
+  --color-greeting-fade: #0a1013;
+  --color-greeting-fade-end: #091115;
+  /* The pressed-glass discs either side of the greeting. */
+  --color-disc: rgb(34 34 34 / 0.7);
+
   /* Accents -------------------------------------------------------------- */
   --color-gold: #c6a059;
   --color-gold-soft: rgb(198 160 89 / 0.16);

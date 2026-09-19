@@ -192,7 +192,7 @@ onMounted(async () => {
             }"
           >
             <q
-              class="block text-pretty border border-hairline-soft bg-bubble px-[0.8rem] py-[0.55rem] text-prompt font-medium leading-[1.35] text-bubble-text backdrop-blur-[6px]"
+              class="glass block text-pretty border border-hairline-soft px-[0.8rem] py-[0.55rem] text-prompt font-medium leading-[1.35] text-bubble-text"
               :class="TAIL_RADIUS[prompt.place.tail]"
             >{{ prompt.text }}</q>
             </li>
@@ -201,7 +201,7 @@ onMounted(async () => {
       </section>
 
       <aside
-        class="animate-rise rounded-card border border-hairline-soft bg-bubble p-[0.8rem] backdrop-blur-[2px] [animation-delay:700ms]"
+        class="glass animate-rise rounded-card border border-hairline-soft p-[0.8rem] [--glass-blur:2px] [animation-delay:700ms]"
       >
         <p class="flex gap-3">
           <svg

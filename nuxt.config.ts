@@ -106,5 +106,12 @@ export default defineNuxtConfig({
     },
   },
 
-  devtools: { enabled: true },
+  /*
+   * Off under test. The devtools panel injects its own custom element into
+   * every page, and it fails colour-contrast and landmark rules of its own —
+   * which would mean either a permanently red accessibility suite or excluding
+   * an element from the scan, and excluding things from a scan is how real
+   * problems get hidden behind a green tick.
+   */
+  devtools: { enabled: process.env.NUXT_DEVTOOLS !== 'false' },
 })

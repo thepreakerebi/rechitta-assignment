@@ -207,6 +207,32 @@ test.describe('03 · Feed · the greeting', () => {
     }
   })
 
+  test('both discs are pressable to their edges, not half covered', async ({ page }) => {
+    for (const size of [PHONE, DESKTOP]) {
+      await open(page, FEED, size)
+
+      // The accordion lays an invisible opener across every panel. At the same
+      // z-index it won on document order and covered the lower half of both
+      // controls — 45px by 23px to a finger, and looking perfectly fine.
+      const covered = await page.evaluate(() =>
+        [...document.querySelectorAll('main header nav a')].filter((disc) => {
+          const box = disc.getBoundingClientRect()
+          // Edge midpoints, not corners: the control is a circle, so its
+          // bounding box corners fall outside the button itself and would
+          // report every disc as covered.
+          const edges: [number, number][] = [
+            [box.x + box.width / 2, box.y + 3],
+            [box.x + box.width / 2, box.bottom - 3],
+            [box.x + 3, box.y + box.height / 2],
+            [box.right - 3, box.y + box.height / 2],
+          ]
+          return edges.some(([x, y]) => !disc.contains(document.elementFromPoint(x, y)))
+        }).length)
+
+      expect(covered, `at ${size.width}`).toBe(0)
+    }
+  })
+
   test('both discs lead to the conversation', async ({ page }) => {
     await open(page, FEED)
 

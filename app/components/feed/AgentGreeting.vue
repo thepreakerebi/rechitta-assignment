@@ -123,9 +123,14 @@ const deck = computed(() => `/project/${props.slug}/answer`)
 <style scoped>
 .hero {
   position: relative;
-  /* Above the chapters, so the controls that hang over the first one are not
-     painted out by it. */
-  z-index: 2;
+  /*
+   * Above the chapters, so the controls that hang over the first one are not
+   * painted out by it — and, less obviously, so they stay pressable. The
+   * accordion lays an invisible opener across every panel; at z-index 2 it tied
+   * with this and won on document order, covering the lower half of both
+   * controls. They looked perfectly fine and were 45px by 23px to a finger.
+   */
+  z-index: 5;
   container-type: inline-size;
   --frame: min(94cqw, clamp(23rem, 30cqw, 32rem));
   --disc: max(2.75rem, calc(var(--frame) * 0.105));

@@ -106,7 +106,54 @@ test.describe('04 · Deck · paging', () => {
     await expect(dots(page).first()).not.toHaveAttribute('aria-current', 'true')
   })
 
-  test('walks on the arrow keys, and stops at both ends', async ({ page }) => {
+  test('slides rather than jumps between panels', async ({ page }) => {
+    await open(page)
+
+    // scroll-behavior is not inherited, and the track is its own scroll
+    // container — so the page's smooth scrolling never reached it and every
+    // dot press landed instantly.
+    await expect(page.locator('main .track')).toHaveCSS('scroll-behavior', 'smooth')
+
+    const track = page.locator('main .track')
+    await dots(page).nth(2).click()
+
+    // Caught in flight: a jump would already be at its destination.
+    const midway = await track.evaluate(el => el.scrollLeft)
+    const destination = await track.evaluate(el => el.clientWidth * 2)
+    expect(midway).toBeLessThan(destination)
+
+    await expect.poll(() => showing(page)).toBe(2)
+  })
+
+  test('walks on the arrow keys from anywhere on the screen', async ({ page }) => {
+    await open(page, DECK, DESKTOP)
+
+    // Not only once someone has tabbed onto a scroll container, which would
+    // make the shortcut useful only to people who had already found it.
+    await page.keyboard.press('ArrowRight')
+    await expect.poll(() => showing(page)).toBe(1)
+
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(() => showing(page)).toBe(2)
+
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(() => showing(page)).toBe(1)
+
+    await page.keyboard.press('ArrowLeft')
+    await expect.poll(() => showing(page)).toBe(0)
+  })
+
+  test('the arrows still belong to a focused control', async ({ page }) => {
+    await open(page, DECK, DESKTOP)
+
+    // The microphone owns its own keys while it has focus.
+    await page.locator('main header button').focus()
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(400)
+    expect(await showing(page)).toBe(0)
+  })
+
+  test('stops at both ends rather than wrapping', async ({ page }) => {
     await open(page, DECK, DESKTOP)
 
     await page.locator('main .track').focus()

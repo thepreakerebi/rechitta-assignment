@@ -61,6 +61,16 @@ const voice = useAgentVoice()
 const unheard = ref<string | null>(null)
 
 /**
+ * Whether the answer on screen is a reply to something spoken.
+ *
+ * She has a voice, but she is not a narrator: arriving from a chapter's arrow
+ * or a shared link is reading, and reading should not start a recording of
+ * someone talking at you. Only a question she was actually asked out loud is
+ * answered out loud — and only that answer puts her words in the header.
+ */
+const replying = ref(false)
+
+/**
  * The two ways a question reaches her. Spoken and typed are different requests
  * all the way down — the first has to be recognised before it can be answered —
  * so they stay apart here rather than being flattened into a string.
@@ -78,6 +88,7 @@ const ask = async (request: Request) => {
   pending.value = true
   failed.value = false
   unheard.value = null
+  replying.value = false
   voice.silence()
 
   try {
@@ -91,6 +102,7 @@ const ask = async (request: Request) => {
     })
 
     answer.value = heard
+    replying.value = request.kind === 'utterance'
 
     /*
      * The address describes what is on screen, including for a question nobody
@@ -101,7 +113,8 @@ const ask = async (request: Request) => {
       await router.replace({ query: { ...route.query, q: heard.question } })
     }
 
-    if (heard.voice) await voice.speak(heard.voice)
+    // Out loud only in reply, and only when there is a recording of the reply.
+    if (replying.value && heard.voice) await voice.speak(heard.voice)
   }
   catch (error) {
     // The server's own message is never surfaced; what is needed is the way on.
@@ -256,30 +269,12 @@ watch(panels, () => {
       :primed="primed"
       :voice="voice.readDrive"
       :speaking="voice.isSpeaking.value"
+      :transcript="replying ? answer?.transcript : undefined"
+      :has-voice="Boolean(answer?.voice)"
       @ask="askSpoken"
+      @listen="voice.silence"
+      @replay="replay"
     />
-
-    <!-- She is answering out loud; these are the words, for anyone who cannot
-         hear them, has the sound off, or simply reads faster than she speaks. -->
-    <Transition name="said">
-      <section
-        v-if="answer && answer.transcript"
-        class="said"
-        aria-live="polite"
-      >
-        <q class="words">{{ answer.transcript }}</q>
-
-        <!-- WCAG 2.1.2 asks for a way to stop sound that has started. It is
-             also the way to hear it again, which is the commoner need. -->
-        <button
-          v-if="answer.voice"
-          type="button"
-          class="sound"
-          :aria-pressed="voice.isSpeaking.value"
-          @click="replay"
-        >{{ voice.isSpeaking.value ? 'Stop' : 'Play again' }}</button>
-      </section>
-    </Transition>
 
     <!-- A question she could not make out leaves the answer already on screen
          alone, and says so here instead. -->
@@ -388,73 +383,6 @@ watch(panels, () => {
 </template>
 
 <style scoped>
-/*
- * Her words, under the header and over the panels. Absolute rather than in
- * flow: the deck is one viewport tall by design, and a caption that grew with
- * the sentence would push the pager off the bottom of a phone.
- */
-.said {
-  position: absolute;
-  z-index: 4;
-  inset-inline: clamp(0.75rem, 3cqi, 2.5rem);
-  inset-block-start: calc(4.125rem + clamp(0.75rem, 3cqi, 2rem));
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  max-inline-size: var(--spacing-column);
-  margin-inline: auto;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-card);
-  /* Her voice sits over photography, so the scrim is what guarantees the
-     contrast rather than the photograph's good manners. */
-  background-color: rgb(9 9 11 / 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.words {
-  flex: 1 1 14rem;
-  font-size: clamp(0.8125rem, 0.75rem + 0.25cqi, 1rem);
-  line-height: 1.55;
-  color: var(--color-text);
-  text-wrap: pretty;
-}
-
-.sound {
-  flex: 0 0 auto;
-  min-block-size: 2.75rem;
-  padding-inline: 0.875rem;
-  border-radius: var(--radius-pill);
-  font-family: var(--font-ui);
-  font-size: var(--text-small);
-  font-weight: 500;
-  color: var(--color-text-muted);
-  transition:
-    color var(--duration-quick) var(--ease-out-soft),
-    background-color var(--duration-quick) var(--ease-out-soft);
-}
-
-.sound:hover {
-  background-color: var(--color-surface-raised);
-  color: var(--color-text);
-}
-
-.said-enter-active,
-.said-leave-active {
-  transition:
-    opacity var(--duration-base) var(--ease-out-soft),
-    translate var(--duration-base) var(--ease-out-soft);
-}
-
-.said-enter-from,
-.said-leave-to {
-  opacity: 0;
-  translate: 0 -0.5rem;
-}
-
 .deck {
   position: relative;
   isolation: isolate;

@@ -25,7 +25,15 @@ const open = async (page: Page, path = DECK, size = PHONE) => {
 }
 
 const mic = (page: Page) => page.locator('main header button.mic')
-const caption = (page: Page) => page.locator('main section.said')
+
+/** Say something to her: open the microphone, talk, stop. */
+const speakTo = async (page: Page, forMs = 2000) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.waitForTimeout(forMs)
+  await mic(page).click()
+}
+const caption = (page: Page) => page.locator('main section.spoken')
 const sound = (page: Page) => caption(page).locator('button.sound')
 
 /** A well-formed utterance: two seconds, most of it voiced, clearly audible. */
@@ -102,11 +110,8 @@ test.describe('04b · Speaking to her', () => {
       if (request.url().includes('/api/agent/ask') && request.method() === 'POST') posts.push(request)
     })
 
-    await mic(page).click()
-    await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
     // Long enough for the fake device to carry a sentence's worth of sound.
-    await page.waitForTimeout(2000)
-    await mic(page).click()
+    await speakTo(page)
 
     await expect.poll(() => posts.length, { timeout: 15_000 }).toBeGreaterThan(0)
 
@@ -128,9 +133,7 @@ test.describe('04b · Speaking to her', () => {
   test('puts the question she heard into the address', async ({ page }) => {
     await open(page)
 
-    await mic(page).click()
-    await page.waitForTimeout(2000)
-    await mic(page).click()
+    await speakTo(page)
 
     // The address describes the screen, including for a question nobody typed.
     await expect.poll(() => new URL(page.url()).searchParams.get('q'), { timeout: 15_000 })
@@ -140,21 +143,36 @@ test.describe('04b · Speaking to her', () => {
     await expect(page.locator('main header h1')).toContainText(heard)
   })
 
-  test('shows her words, and offers to play them again', async ({ page }) => {
-    await open(page)
+  // She has a voice; she is not a narrator. Arriving from a chapter's arrow or
+  // a shared link is reading, and reading should not start a recording of
+  // someone talking at you.
+  test('says nothing at all until she is spoken to', async ({ page }) => {
+    const clips: string[] = []
+    page.on('response', (response) => {
+      if (response.url().includes('/audio/')) clips.push(response.url())
+    })
 
-    await expect(caption(page)).toBeVisible()
+    await open(page)
+    await expect(page.locator('main .slide').first()).toBeVisible()
+
+    expect(clips).toHaveLength(0)
+    await expect(caption(page)).toHaveCount(0)
+  })
+
+  test('shows her words once she has replied to something said', async ({ page }) => {
+    await open(page)
+    await speakTo(page)
+
+    await expect(caption(page)).toBeVisible({ timeout: 15_000 })
     await expect(caption(page)).not.toBeEmpty()
 
-    // WCAG 2.1.2: sound that has started can be stopped. It is the same control
+    // WCAG 1.4.2: sound that has started can be stopped. It is the same control
     // that starts it again, which is what anyone actually wants from it.
     await expect(sound(page)).toBeVisible()
     await expect(sound(page)).toHaveAttribute('aria-pressed', /true|false/)
   })
 
   test('her answer is a file the orb can hear, not a voice it has to guess at', async ({ page }) => {
-    // Watched from before the page exists: she says her answer on arrival, so
-    // by the time a loaded page is idle the clip has already been fetched.
     const clips: string[] = []
     page.on('response', (response) => {
       if (response.url().includes('/audio/') && response.status() < 400) {
@@ -163,6 +181,7 @@ test.describe('04b · Speaking to her', () => {
     })
 
     await open(page)
+    await speakTo(page)
 
     await expect.poll(() => clips.length, { timeout: 15_000 }).toBeGreaterThan(0)
     // Real audio, decoded by the browser — which is what makes the orb's
@@ -172,7 +191,8 @@ test.describe('04b · Speaking to her', () => {
 
   test('playing her answer again is a state the control reports', async ({ page }) => {
     await open(page)
-    await expect(sound(page)).toBeVisible()
+    await speakTo(page)
+    await expect(sound(page)).toBeVisible({ timeout: 15_000 })
 
     await sound(page).click()
 
@@ -200,13 +220,11 @@ test.describe('04b · Speaking to her', () => {
       })
     })
 
-    await mic(page).click()
-    await page.waitForTimeout(1200)
-    await mic(page).click()
+    await speakTo(page, 1200)
 
     await expect(page.getByText(/did not catch/i)).toBeVisible({ timeout: 15_000 })
     // The answer that was already there is still true.
     await expect(page.locator('main header h1')).toHaveText(before)
-    await expect(caption(page)).toBeVisible()
+    await expect(page.locator('main .slide').first()).toBeVisible()
   })
 })

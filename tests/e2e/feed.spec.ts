@@ -207,22 +207,24 @@ test.describe('03 · Feed · the greeting', () => {
     }
   })
 
-  test('both discs lead to the screen that does listen', async ({ page }) => {
+  test('both discs lead to the conversation', async ({ page }) => {
     await open(page, FEED)
 
     const discs = page.locator('main header nav[aria-label="Talk to Rechitta"] a')
     await expect(discs).toHaveCount(2)
 
     for (const disc of await discs.all()) {
-      await expect(disc).toHaveAttribute('href', '/ask')
+      // Two doors into one room: the deck is where her answer is and where the
+      // next question gets asked.
+      await expect(disc).toHaveAttribute('href', new RegExp(`${FEED}/answer`))
       const box = (await disc.boundingBox())!
       expect(box.width).toBeGreaterThanOrEqual(44)
       expect(box.height).toBeGreaterThanOrEqual(44)
     }
 
     // Each has a name, because two identical circles otherwise read as "link".
-    await expect(discs.first()).toHaveAccessibleName(/read what rechitta said/i)
-    await expect(discs.last()).toHaveAccessibleName(/speak to rechitta/i)
+    await expect(discs.first()).toHaveAccessibleName(/read rechitta’s answer/i)
+    await expect(discs.last()).toHaveAccessibleName(/out loud/i)
   })
 })
 

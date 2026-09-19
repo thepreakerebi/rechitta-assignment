@@ -1,7 +1,7 @@
 import { createError, readValidatedBody } from 'h3'
 import { z } from 'zod'
 import { applyScenario } from '../../mock/scenario'
-import { answer } from '../../mock/data'
+import { answerFor } from '../../mock/data'
 import type { Answer } from '#shared/types/domain'
 
 /**
@@ -42,5 +42,9 @@ export default defineEventHandler(async (event): Promise<Answer> => {
     }
   }
 
-  return { ...answer, id: `ask-${Date.now()}`, question: body.data.question }
+  // Matched on the question, so the feed's seven arrows each get the answer
+  // their chapter was asking for rather than one answer with seven doors.
+  const found = answerFor(body.data.question)
+
+  return { ...found, id: `${found.id}-${Date.now()}`, question: body.data.question }
 })

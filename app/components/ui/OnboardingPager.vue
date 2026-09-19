@@ -63,10 +63,20 @@ const go = (move: number | 'first' | 'last') => {
 /**
  * The same two steps, by finger.
  *
- * Only a touch pointer: a mouse drag across a page is a selection, not a page
- * turn, and a pen is usually drawing. Nothing is prevented — the gesture is
- * read after the fact from where the finger went down and came up — so
- * scrolling, pinching and text selection all carry on as they were.
+ * Touch events, not pointer events. A pointer is cancelled the moment the
+ * browser decides a gesture belongs to it — on a real touchscreen a sideways
+ * drag is a candidate for panning, so `pointercancel` arrives and `pointerup`
+ * never does, and the swipe is silently dropped. Synthetic pointer events in a
+ * test are never cancelled, which is exactly why this passed in CI and did
+ * nothing on a phone.
+ *
+ * Touch events also answer the other half of the question for free: a mouse
+ * never fires them, and a mouse drag across a page is a selection rather than a
+ * page turn.
+ *
+ * Nothing is prevented — the gesture is read after the fact, from where the
+ * finger went down and came up — so scrolling, pinching and text selection all
+ * carry on as they were.
  */
 let from: SwipePoint | null = null
 
@@ -90,18 +100,24 @@ const ownsHorizontalScroll = (node: Node | null): boolean => {
   return false
 }
 
-const onPointerDown = (event: PointerEvent) => {
-  from = event.pointerType === 'touch' && !ownsHorizontalScroll(event.target as Node)
-    ? { x: event.clientX, y: event.clientY, at: event.timeStamp }
+const onTouchStart = (event: TouchEvent) => {
+  const touch = event.changedTouches[0]
+
+  // One finger only: two is a pinch, and turning the page under a pinch is the
+  // page answering a question it was not asked.
+  from = touch && event.touches.length === 1 && !ownsHorizontalScroll(event.target as Node)
+    ? { x: touch.clientX, y: touch.clientY, at: event.timeStamp }
     : null
 }
 
-const onPointerUp = (event: PointerEvent) => {
+const onTouchEnd = (event: TouchEvent) => {
   const start = from
   from = null
-  if (!start || event.pointerType !== 'touch') return
 
-  const swipe = readSwipe(start, { x: event.clientX, y: event.clientY, at: event.timeStamp }, window.innerWidth)
+  const touch = event.changedTouches[0]
+  if (!start || !touch) return
+
+  const swipe = readSwipe(start, { x: touch.clientX, y: touch.clientY, at: event.timeStamp }, window.innerWidth)
   if (!swipe) return
 
   return go(swipe === 'forward' ? 1 : -1)
@@ -143,9 +159,9 @@ if (import.meta.client) {
   useEventListener(document, 'keydown', onKeydown)
   // Passive, because nothing here prevents a default — a swipe is read after
   // the fact, so scrolling and selection are never held up waiting on it.
-  useEventListener(document, 'pointerdown', onPointerDown, { passive: true })
-  useEventListener(document, 'pointerup', onPointerUp, { passive: true })
-  useEventListener(document, 'pointercancel', () => { from = null }, { passive: true })
+  useEventListener(document, 'touchstart', onTouchStart, { passive: true })
+  useEventListener(document, 'touchend', onTouchEnd, { passive: true })
+  useEventListener(document, 'touchcancel', () => { from = null }, { passive: true })
 }
 </script>
 

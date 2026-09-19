@@ -221,8 +221,49 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
   pointer-events: none;
 }
 
-/* The mark is a lit object in the comp, not a flat image. */
+/*
+ * The mark is a lit glass object in the comp, not a flat image, so it is given
+ * the motion of one: a slow tilt through a shallow perspective, a drift, and a
+ * lustre that swells as if a light were passing across it.
+ *
+ * Two separate animations on purposely coprime periods — 11s and 7s — so the
+ * pair never lands on a visible loop. Both are transform and filter only, which
+ * keeps the whole thing on the compositor and off the main thread; nothing here
+ * triggers layout.
+ *
+ * Under prefers-reduced-motion the global override collapses both to a single
+ * instant iteration with no fill, so the mark simply sits still.
+ */
 .mark {
   mix-blend-mode: plus-lighter;
+  animation:
+    mark-tilt 11s var(--ease-in-out-soft) infinite,
+    mark-lustre 7s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+@keyframes mark-tilt {
+  0% {
+    transform: perspective(900px) rotate3d(0, 1, 0, -7deg) rotate3d(1, 0, 0, 2.5deg)
+      translate3d(0, -4px, 0);
+  }
+  50% {
+    transform: perspective(900px) rotate3d(0, 1, 0, 7deg) rotate3d(1, 0, 0, -2deg)
+      translate3d(0, 6px, 0);
+  }
+  100% {
+    transform: perspective(900px) rotate3d(0, 1, 0, -7deg) rotate3d(1, 0, 0, 2.5deg)
+      translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes mark-lustre {
+  0%,
+  100% {
+    filter: brightness(1) saturate(1);
+  }
+  50% {
+    filter: brightness(1.2) saturate(1.25);
+  }
 }
 </style>

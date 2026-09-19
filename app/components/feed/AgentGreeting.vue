@@ -6,14 +6,15 @@ import TheOrb from '~/components/orb/TheOrb.vue'
  *
  * The orb here does not listen. This screen is a briefing, not a conversation —
  * nobody has asked to speak — so it runs its idle drive exactly as on the
- * onboarding screen, and the microphone is never opened. The control below is a
+ * onboarding screen, and the microphone is never opened. The two controls are a
  * way *into* the conversation, not a live capture.
  *
- * Everything inside the stage is placed as a share of the comp's own 400×409
- * group, so the arrangement holds its proportions at any width instead of
- * drifting apart. The two washes are the reason the text is legible at all:
- * they multiply the orb down to nothing behind the words, which is what lets
- * the greeting sit on the orb rather than beside it.
+ * Everything is a share of one named length, `--frame`. The comp's group is 400
+ * wide and every part of it is drawn at a fixed offset inside that — the orb at
+ * x 17, the mark at 174,72, the greeting at 70,118, the controls at 152,226 —
+ * so multiplying one length reproduces those offsets at any size. It is a real
+ * length rather than a percentage on purpose: percentages resolve against the
+ * containing block, or against the parent font size, and neither is the frame.
  */
 
 defineProps<{
@@ -23,93 +24,117 @@ defineProps<{
 </script>
 
 <template>
-  <header class="greeting relative isolate overflow-hidden bg-ink pb-[clamp(0.5rem,2vh,1.25rem)] pt-[clamp(1.5rem,6vh,3rem)]">
-    <p class="relative z-20 text-center text-[clamp(1.05rem,1rem+0.4cqi,1.35rem)] leading-normal text-white/75">
-      Welcome <em class="not-italic">👋</em>
-    </p>
+  <header class="hero">
+    <!-- The pane clips; the header does not. The controls have to hang past
+         the bottom edge onto the first chapter, as they do in the comp. -->
+    <figure class="pane">
+      <p class="welcome">
+        Welcome <em class="not-italic">👋</em>
+      </p>
 
-    <figure class="stage">
-      <figure class="group">
+      <figure class="stage">
         <figure class="orb-well">
           <TheOrb :opacity="0.9" />
         </figure>
 
-      <!-- The mark, riding on the orb: the same sprite the splash uses,
-           cropped to its leftmost glyph, exactly as the comp crops it. -->
-      <figure class="mark">
-        <img
-          src="/brand/logo-white.webp"
-          alt=""
-          width="1024"
-          height="152"
-        >
-      </figure>
-
-      <!-- Decoration, so CSS rather than markup: one wash falling through the
-           orb's lower half, one rising from beneath it. -->
-      <figcaption class="speech">
-        <p
-          v-if="loading"
-          class="flex flex-col items-center gap-2"
-          aria-busy="true"
-        >
-          <i class="skeleton block h-3 w-[72%] rounded" />
-          <i class="skeleton block h-3 w-[92%] rounded [animation-delay:120ms]" />
-          <i class="skeleton block h-3 w-[58%] rounded [animation-delay:240ms]" />
-          <em class="visually-hidden">Rechitta is getting ready.</em>
-        </p>
-
-        <p
-          v-else-if="greeting"
-          class="text-pretty text-center text-[clamp(0.75rem,0.69rem+0.36cqi,0.95rem)] leading-[1.85] text-white"
-        >{{ greeting }}</p>
-      </figcaption>
-
-      <!-- Into the conversation, and into the transcript. Both land on the
-           screen that actually listens rather than opening a microphone here. -->
-      <nav
-        class="discs"
-        aria-label="Talk to Rechitta"
-      >
-        <NuxtLink
-          class="disc"
-          to="/ask"
-        >
+        <!-- The mark, riding on the orb: the sprite the splash already ships,
+             cropped to its leftmost glyph exactly as the comp crops it. -->
+        <figure class="mark">
           <img
-            src="/icons/transcript.svg"
+            src="/brand/logo-white.webp"
             alt=""
-            width="24"
-            height="24"
+            width="1024"
+            height="152"
           >
-          <em class="visually-hidden">Read what Rechitta said</em>
-        </NuxtLink>
+        </figure>
 
-        <NuxtLink
-          class="disc"
-          to="/ask"
-        >
-          <img
-            src="/icons/microphone.svg"
-            alt=""
-            width="24"
-            height="24"
+        <!-- In flow, so the block is as tall as the words actually are. -->
+        <figcaption class="speech">
+          <p
+            v-if="loading"
+            class="flex flex-col items-center gap-2"
+            aria-busy="true"
           >
-          <em class="visually-hidden">Speak to Rechitta</em>
-        </NuxtLink>
-        </nav>
+            <i class="skeleton block h-3 w-[72%] rounded" />
+            <i class="skeleton block h-3 w-[92%] rounded [animation-delay:120ms]" />
+            <i class="skeleton block h-3 w-[58%] rounded [animation-delay:240ms]" />
+            <em class="visually-hidden">Rechitta is getting ready.</em>
+          </p>
+
+          <p
+            v-else-if="greeting"
+            class="text-pretty text-center leading-[1.85] text-white"
+          >{{ greeting }}</p>
+        </figcaption>
       </figure>
     </figure>
+
+    <!-- Into the conversation, and into the transcript. Both land on the
+         screen that actually listens rather than opening a microphone here. -->
+    <nav
+      class="discs"
+      aria-label="Talk to Rechitta"
+    >
+      <NuxtLink
+        class="disc"
+        to="/ask"
+      >
+        <img
+          src="/icons/transcript.svg"
+          alt=""
+          width="24"
+          height="24"
+        >
+        <em class="visually-hidden">Read what Rechitta said</em>
+      </NuxtLink>
+
+      <NuxtLink
+        class="disc"
+        to="/ask"
+      >
+        <img
+          src="/icons/microphone.svg"
+          alt=""
+          width="24"
+          height="24"
+        >
+        <em class="visually-hidden">Speak to Rechitta</em>
+      </NuxtLink>
+    </nav>
   </header>
 </template>
 
 <style scoped>
-.greeting {
+.hero {
+  position: relative;
+  /* Above the chapters, so the controls that hang over the first one are not
+     painted out by it. */
+  z-index: 2;
   container-type: inline-size;
+  --frame: min(94cqw, clamp(23rem, 30cqw, 32rem));
+  --disc: max(2.75rem, calc(var(--frame) * 0.105));
 }
 
-/* The comp's glow and contour field, so the top of the feed reads as the same
+.pane {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background-color: var(--color-ink);
+  padding-block: clamp(1.5rem, 6vh, 3rem) calc(var(--frame) * 0.18);
+}
+
+.welcome {
+  position: relative;
+  z-index: 4;
+  text-align: center;
+  line-height: normal;
+  color: rgb(255 255 255 / 0.75);
+  font-size: clamp(1.05rem, calc(var(--frame) * 0.05), 1.35rem);
+}
+
+/* The comp's glow and contour field, so the head of the feed reads as the same
    room as every other screen. */
-.greeting::before {
+.pane::before {
   content: '';
   position: absolute;
   z-index: 0;
@@ -129,11 +154,11 @@ defineProps<{
   pointer-events: none;
 }
 
-.greeting::after {
+.pane::after {
   content: '';
   position: absolute;
   z-index: 0;
-  inset: -12% -30% 30% -23%;
+  inset: -12% -30% 26% -23%;
   background-image: url('/brand/contour-lines-onboarding.svg');
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -142,61 +167,80 @@ defineProps<{
 }
 
 /*
- * The comp's group, at its own 400×409. Capped near the comp's own width so a
- * desktop window gets a centred greeting rather than a three-metre orb.
- */
-/*
- * Two boxes, because the comp's group reserves height its content never uses:
- * the last thing in it sits at 66% and the rest is the tail of a wash. The
- * outer box is what the page sees and clips to; the inner one keeps the comp's
- * own 400×409, so every child can stay at the percentage it was drawn at
- * instead of being re-derived against a shorter box.
+ * The group. Its height is whatever the greeting turns out to be, so a longer
+ * line pushes what follows down rather than running through it. flow-root,
+ * because otherwise the greeting's top margin collapses straight out of this
+ * box and moves the whole group instead of moving the words down the orb.
  */
 .stage {
   position: relative;
   z-index: 1;
-  inline-size: min(100%, 25rem);
+  display: flow-root;
+  inline-size: var(--frame);
   margin-inline: auto;
-  margin-block-start: clamp(0.25rem, 1.5vh, 0.75rem);
-  aspect-ratio: 400 / 295;
-  overflow: clip;
+  margin-block-start: calc(var(--frame) * 0.02);
 }
 
-.group {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 0;
-  aspect-ratio: 400 / 409;
-}
-
-/* 367×246 at x 17, y 0 — wider than it is tall, which a square canvas cannot
-   be, so the orb overflows the box vertically and is centred on it. Its alpha
-   falls away long before its box does, so nothing is seen to be clipped. */
+/*
+ * The orb's visible glow falls away well inside its own canvas — measured at
+ * 0.708 of it — so the canvas has to run about a third wider than the frame for
+ * the orb to read at the comp's 92%. The offsets put the visible disc's top-left
+ * where the comp draws it, allowing for that margin on every side.
+ */
 .orb-well {
   position: absolute;
-  inset-inline-start: 4.25%;
-  inline-size: 91.75%;
-  inset-block-start: 30.07%;
+  z-index: -1;
+  inset-inline-start: -14.75%;
+  inset-block-start: calc(var(--frame) * -0.19);
+  inline-size: 130%;
   aspect-ratio: 1;
-  translate: 0 -50%;
   mix-blend-mode: lighten;
   pointer-events: none;
 }
 
-/* 34×32 at x 174, y 72. */
+/*
+ * The orb is meant to be half swallowed by the page. A gradient to the page's
+ * own black takes its lower half, and the last line of the greeting with it,
+ * exactly as the comp fades "life's biggest decisions".
+ *
+ * It runs well past both edges so that it is the pane, not the gradient, that
+ * decides where it ends. Sized to the group it drew a dark rectangle the width
+ * of the group — the black box around the orb.
+ */
+.stage::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset-inline: -50vw;
+  inset-block-start: calc(var(--frame) * 0.26);
+  block-size: calc(var(--frame) * 0.52);
+  /* Solid by about six tenths of the group, which is above where the pane ends
+     at every width — otherwise the orb's lower arc is still faintly there when
+     the first chapter begins, and the seam shows. */
+  background: linear-gradient(
+    to bottom,
+    rgb(9 9 11 / 0) 0%,
+    rgb(9 9 11 / 0.86) 44%,
+    var(--color-ink) 70%
+  );
+  pointer-events: none;
+}
+
+/* 34×32 at x 174, y 72 — on the orb, above the words. */
 .mark {
   position: absolute;
-  inset-inline-start: 43.5%;
-  inset-block-start: 17.6%;
-  inline-size: 8.5%;
-  aspect-ratio: 34 / 32;
-  overflow: hidden;
   z-index: 3;
+  inset-inline-start: 50%;
+  inset-block-start: calc(var(--frame) * 0.175);
+  inline-size: calc(var(--frame) * 0.085);
+  aspect-ratio: 34 / 32;
+  translate: -50% 0;
+  overflow: hidden;
   pointer-events: none;
 }
 
 /* The sprite is a full lockup; the comp shows only its first glyph, by scaling
-   it to 628% of the box and clipping. */
+   it to 628% of the box and clipping to the box. */
 .mark img {
   position: absolute;
   inset-block-start: 3.6%;
@@ -206,64 +250,42 @@ defineProps<{
   block-size: 100.5%;
 }
 
-/*
- * The first wash: 400×135 at y 111, transparent to #0a1013 by seven tenths,
- * multiplied. On the near-black page it does nothing; over the orb it takes the
- * orb away, which is the whole trick.
- */
-.group::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 27.14%;
-  block-size: 33%;
-  background: linear-gradient(to bottom, rgb(217 217 217 / 0) 0%, var(--color-greeting-fade) 70.5%);
-  mix-blend-mode: multiply;
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* The second: 400×163 at y 246, the same gradient turned over. */
-.group::after {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 60.15%;
-  block-size: 39.85%;
-  background: linear-gradient(to top, rgb(217 217 217 / 0) 26.6%, var(--color-greeting-fade-end) 110%);
-  mix-blend-mode: multiply;
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* 252 wide at x 70, y 118. */
+/* 252 wide at y 118 — 63% of the group, starting a little under half way down
+   the orb. */
 .speech {
-  position: absolute;
-  inset-inline-start: 17.5%;
+  position: relative;
+  z-index: 1;
   inline-size: 63%;
-  inset-block-start: 28.85%;
-  z-index: 2;
+  margin-inline: auto;
+  margin-block-start: calc(var(--frame) * 0.295);
+  /* 12px in a 400 group, held between legible bounds at the extremes. */
+  font-size: clamp(0.72rem, calc(var(--frame) * 0.031), 1.05rem);
 }
 
-/* 96×40 at x 152, y 226. */
+/*
+ * Absolutely placed across the seam, half on the greeting and half on the first
+ * chapter, which is where the comp puts them — and above both.
+ */
 .discs {
   position: absolute;
+  z-index: 5;
   inset-inline: 0;
-  inset-block-start: 55.26%;
-  z-index: 2;
+  inset-block-end: 0;
+  translate: 0 50%;
   display: flex;
   justify-content: center;
-  gap: 1rem;
+  gap: calc(var(--frame) * 0.04);
 }
 
 .disc {
   display: grid;
   place-items: center;
-  /* 40px in the comp, lifted to the 44px the touch-target rule wants. */
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
+  /* 40px of a 400 group, never below the 44px the touch-target rule asks. */
+  inline-size: var(--disc);
+  block-size: var(--disc);
   border-radius: var(--radius-pill);
   background-color: var(--color-disc);
+  backdrop-filter: blur(6px);
   color: var(--color-text);
   transition:
     background-color var(--duration-quick) var(--ease-out-soft),
@@ -279,8 +301,8 @@ defineProps<{
 }
 
 .disc img {
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: calc(var(--disc) * 0.55);
+  block-size: calc(var(--disc) * 0.55);
 }
 
 .skeleton {

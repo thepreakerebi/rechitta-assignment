@@ -102,4 +102,28 @@ test.describe('01 · Splash', () => {
     await page.goto('/')
     await expect(page.getByText('Step 1 of 3')).toBeAttached()
   })
+
+  test('the mark is alive, and stops dead under reduced motion', async ({ page }) => {
+    await page.setViewportSize(PHONE)
+    await page.goto('/')
+
+    const read = () =>
+      page.evaluate(() => {
+        const style = getComputedStyle(document.querySelector('.mark')!)
+        return `${style.transform}|${style.filter}`
+      })
+
+    const first = await read()
+    await page.waitForTimeout(1200)
+    expect(await read()).not.toBe(first)
+
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.reload()
+    await page.waitForTimeout(400)
+
+    const still = await read()
+    await page.waitForTimeout(1200)
+    expect(await read()).toBe(still)
+    expect(still.startsWith('none')).toBe(true)
+  })
 })

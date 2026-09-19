@@ -59,11 +59,11 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
            positioned element the containing block is definite, so max-h-full
            holds and the mark yields before the controls ever do. -->
       <figure
-        class="relative min-h-0 flex-1 animate-emerge [animation-delay:100ms]"
+        class="mark-stage relative min-h-0 flex-1 animate-emerge [animation-delay:100ms]"
       >
         <img
-          class="mark absolute inset-0 m-auto max-h-full w-[clamp(7rem,40cqi,11rem)] object-contain"
-        src="/brand/mark-glass.webp"
+          class="mark"
+          src="/brand/mark-glass.webp"
           alt=""
           width="512"
           height="529"
@@ -230,30 +230,52 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
 
 /*
  * The mark is a lit glass object in the comp, not a flat image, so it is given
- * the motion of one — but on a rhythm rather than a constant sway: it turns
- * left, turns back through to the right, settles to square, and then rests for
- * about a third of the cycle before going again. Perpetual motion in the
- * corner of the eye is tiring; a pause is what makes the movement read as
- * deliberate.
+ * the behaviour of one. Rotating a photograph is not enough on its own: the
+ * highlights turn rigidly with the object, and the eye reads that as a picture
+ * turning rather than glass turning. Three things break that rigidity.
  *
- * It is a yaw and nothing else. An earlier version paired a small rotateY with
- * a vertical translate and an X-axis tilt, and the translate was the only part
- * the eye actually caught — it read as bobbing up and down. A flat plane also
- * needs a short perspective and a real angle before a turn is legible at all,
- * hence 420px and 28 degrees rather than 900px and 8.
+ *  1. A specular sweep that travels ACROSS the mark while it turns. A highlight
+ *     that moves independently of the surface is the clearest signal there is
+ *     that something is glass.
+ *  2. Chromatic fringing at the extremes of the turn, and only there — a lens
+ *     disperses most when you are looking through it most obliquely. The fringe
+ *     swaps sides with the direction of the lean.
+ *  3. A bloom that swells with the turn instead of throbbing on its own clock,
+ *     so the light and the rotation read as one gesture.
  *
- * The lustre runs on the same twelve seconds so the glass brightens through the
- * turn and calms while it is still. Transform and filter only, so the whole
- * thing stays on the compositor and nothing triggers layout.
+ * All four layers share one geometry, derived from height rather than width, so
+ * the sweep's mask registers exactly to the artwork at every size. Sizing by
+ * width and capping the height would letterbox the image inside its own box and
+ * the mask would drift off the shape.
  *
- * Under prefers-reduced-motion the global override collapses both to a single
- * instant iteration with no fill, so the mark simply sits square and still.
+ * Everything is on the same twelve-second cycle. Under prefers-reduced-motion
+ * the global override collapses the animations to a single instant iteration
+ * with no fill, and every layer's resting state is its invisible one, so the
+ * mark simply sits square, unlit and still.
  */
+.mark-stage {
+  --mark-block: min(100%, calc(clamp(7rem, 40cqi, 11rem) * 529 / 512));
+}
+
+.mark,
+.mark-stage::before,
+.mark-stage::after {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  block-size: var(--mark-block);
+  inline-size: auto;
+  aspect-ratio: 512 / 529;
+  pointer-events: none;
+}
+
+/* -- the mark itself ------------------------------------------------------ */
+
 .mark {
   mix-blend-mode: plus-lighter;
   animation:
     mark-tilt 12s var(--ease-in-out-soft) infinite,
-    mark-lustre 12s var(--ease-in-out-soft) infinite;
+    mark-dispersion 12s var(--ease-in-out-soft) infinite;
   will-change: transform, filter;
 }
 
@@ -281,20 +303,129 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
   }
 }
 
-@keyframes mark-lustre {
+/*
+ * Every keyframe declares the same filter functions in the same order. A filter
+ * list that changes length between keyframes cannot be interpolated, and the
+ * browser falls back to switching discretely — which would make the fringe
+ * appear and vanish rather than swell.
+ */
+@keyframes mark-dispersion {
   0%,
   10% {
-    filter: brightness(1) saturate(1);
+    filter: brightness(1) saturate(1) drop-shadow(0 0 0 rgb(0 190 255 / 0))
+      drop-shadow(0 0 0 rgb(255 60 170 / 0));
   }
   28% {
-    filter: brightness(1.16) saturate(1.2);
+    filter: brightness(1.1) saturate(1.16) drop-shadow(-2px 0 0 rgb(0 190 255 / 0.5))
+      drop-shadow(2px 0 0 rgb(255 60 170 / 0.32));
   }
   52% {
-    filter: brightness(1.22) saturate(1.28);
+    filter: brightness(1.16) saturate(1.24) drop-shadow(2px 0 0 rgb(0 190 255 / 0.5))
+      drop-shadow(-2px 0 0 rgb(255 60 170 / 0.32));
   }
   72%,
   100% {
-    filter: brightness(1) saturate(1);
+    filter: brightness(1) saturate(1) drop-shadow(0 0 0 rgb(0 190 255 / 0))
+      drop-shadow(0 0 0 rgb(255 60 170 / 0));
+  }
+}
+
+/* -- bloom, behind the mark ----------------------------------------------- */
+
+.mark-stage::before {
+  content: '';
+  opacity: 0;
+  scale: 1.75;
+  background: radial-gradient(
+    closest-side,
+    rgb(0 169 207 / 0.5),
+    rgb(0 169 207 / 0.18) 45%,
+    transparent 72%
+  );
+  filter: blur(14px);
+  animation: mark-bloom 12s var(--ease-in-out-soft) infinite;
+}
+
+@keyframes mark-bloom {
+  0%,
+  10% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.7;
+  }
+  52% {
+    opacity: 0.95;
+  }
+  72%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* -- specular sweep, in front of the mark --------------------------------- */
+
+/*
+ * Masked to the mark's own alpha, and carrying the same tilt, so it stays
+ * registered to the shape while its gradient travels across it. That is the
+ * difference between a highlight that belongs to the object and a band of light
+ * sliding over a rectangle.
+ */
+.mark-stage::after {
+  content: '';
+  opacity: 0;
+  background-image: linear-gradient(
+    104deg,
+    transparent 43%,
+    rgb(255 255 255 / 0.22) 47%,
+    rgb(255 255 255 / 0.95) 50%,
+    rgb(255 255 255 / 0.22) 53%,
+    transparent 57%
+  );
+  /* Wide track, narrow band: the highlight has to be small against the mark or
+     it reads as the whole thing brightening rather than a light crossing it. */
+  background-size: 340% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: plus-lighter;
+
+  -webkit-mask-image: url('/brand/mark-glass.webp');
+  mask-image: url('/brand/mark-glass.webp');
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  animation:
+    mark-tilt 12s var(--ease-in-out-soft) infinite,
+    mark-sweep 12s linear infinite;
+  will-change: transform, background-position, opacity;
+}
+
+/*
+ * Timed to cross while the mark is actually turning — the sweep arrives after
+ * the rest, travels through both extremes, and is gone before the mark settles.
+ * Linear, because a highlight tracking a moving surface should not ease.
+ */
+@keyframes mark-sweep {
+  0%,
+  13% {
+    background-position: 185% 0;
+    opacity: 0;
+  }
+  19% {
+    opacity: 0.9;
+  }
+  50% {
+    background-position: -85% 0;
+    opacity: 0.9;
+  }
+  58% {
+    background-position: -85% 0;
+    opacity: 0;
+  }
+  100% {
+    background-position: -85% 0;
+    opacity: 0;
   }
 }
 </style>

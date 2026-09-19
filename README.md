@@ -113,6 +113,15 @@ The design's smallest type — a 10px eyebrow, an 11px caption — is drawn on a
 400px artboard. Those floors are raised to 12 and 13; the larger steps are
 unchanged.
 
+One further departure, on the feed. The design fades the greeting's last line
+into the black along with the orb's lower half, so *"life's biggest decisions"*
+is drawn at perhaps 2:1 against its background. It is the first thing Rechitta
+says and it fails WCAG 1.4.3 by a wide margin. The gradient still takes the orb
+— that is what lets the orb read as half-swallowed by the page — but the words
+now sit above it at full white, which is 4.5:1 everywhere they fall. The
+greeting is also held at the comp's 12px rather than scaling with the frame:
+grown, its last line runs past the orb's face and onto bare black.
+
 ## Structure
 
 ```

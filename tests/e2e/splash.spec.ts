@@ -113,9 +113,18 @@ test.describe('01 · Splash', () => {
         return `${style.transform}|${style.filter}`
       })
 
-    const first = await read()
-    await page.waitForTimeout(1200)
-    expect(await read()).not.toBe(first)
+    // The cycle deliberately rests for about a third of its length, so a short
+    // sample can legitimately catch no movement. Sample across a full cycle.
+    const samples = new Set<string>()
+    for (let tick = 0; tick < 13; tick++) {
+      samples.add(await read())
+      await page.waitForTimeout(600)
+    }
+    expect(samples.size).toBeGreaterThan(1)
+
+    // And it must come back to square, not drift.
+    const squared = [...samples].some(sample => sample.startsWith('matrix3d(1, 0, 0, 0, 0, 1'))
+    expect(squared).toBe(true)
 
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.reload()

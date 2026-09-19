@@ -223,47 +223,69 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
 
 /*
  * The mark is a lit glass object in the comp, not a flat image, so it is given
- * the motion of one: a slow tilt through a shallow perspective, a drift, and a
- * lustre that swells as if a light were passing across it.
+ * the motion of one — but on a rhythm rather than a constant sway: it turns
+ * left, turns back through to the right, settles to square, and then rests for
+ * about a third of the cycle before going again. Perpetual motion in the
+ * corner of the eye is tiring; a pause is what makes the movement read as
+ * deliberate.
  *
- * Two separate animations on purposely coprime periods — 11s and 7s — so the
- * pair never lands on a visible loop. Both are transform and filter only, which
- * keeps the whole thing on the compositor and off the main thread; nothing here
- * triggers layout.
+ * The lustre runs on the same twelve seconds so the glass brightens through the
+ * turn and calms while it is still. Transform and filter only, so the whole
+ * thing stays on the compositor and nothing triggers layout.
  *
  * Under prefers-reduced-motion the global override collapses both to a single
- * instant iteration with no fill, so the mark simply sits still.
+ * instant iteration with no fill, so the mark simply sits square and still.
  */
 .mark {
   mix-blend-mode: plus-lighter;
   animation:
-    mark-tilt 11s var(--ease-in-out-soft) infinite,
-    mark-lustre 7s ease-in-out infinite;
+    mark-tilt 12s var(--ease-in-out-soft) infinite,
+    mark-lustre 12s var(--ease-in-out-soft) infinite;
   will-change: transform, filter;
 }
 
 @keyframes mark-tilt {
-  0% {
-    transform: perspective(900px) rotate3d(0, 1, 0, -7deg) rotate3d(1, 0, 0, 2.5deg)
-      translate3d(0, -4px, 0);
+  /* Square, and holding. */
+  0%,
+  8% {
+    transform: perspective(900px) rotate3d(0, 1, 0, 0deg) rotate3d(1, 0, 0, 0deg)
+      translate3d(0, 0, 0);
   }
-  50% {
-    transform: perspective(900px) rotate3d(0, 1, 0, 7deg) rotate3d(1, 0, 0, -2deg)
-      translate3d(0, 6px, 0);
+
+  /* Away to the left. */
+  28% {
+    transform: perspective(900px) rotate3d(0, 1, 0, -8deg) rotate3d(1, 0, 0, 2deg)
+      translate3d(0, -5px, 0);
   }
+
+  /* Through to the right. */
+  52% {
+    transform: perspective(900px) rotate3d(0, 1, 0, 8deg) rotate3d(1, 0, 0, -1.5deg)
+      translate3d(0, 5px, 0);
+  }
+
+  /* Back to square, then still until the cycle comes round. */
+  70%,
   100% {
-    transform: perspective(900px) rotate3d(0, 1, 0, -7deg) rotate3d(1, 0, 0, 2.5deg)
-      translate3d(0, -4px, 0);
+    transform: perspective(900px) rotate3d(0, 1, 0, 0deg) rotate3d(1, 0, 0, 0deg)
+      translate3d(0, 0, 0);
   }
 }
 
 @keyframes mark-lustre {
   0%,
-  100% {
+  10% {
     filter: brightness(1) saturate(1);
   }
-  50% {
-    filter: brightness(1.2) saturate(1.25);
+  28% {
+    filter: brightness(1.16) saturate(1.2);
+  }
+  52% {
+    filter: brightness(1.22) saturate(1.28);
+  }
+  72%,
+  100% {
+    filter: brightness(1) saturate(1);
   }
 }
 </style>

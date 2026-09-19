@@ -141,6 +141,14 @@ export const createOrbRenderer = (canvas: HTMLCanvasElement): OrbRenderer | null
     if (disposed) return
     disposed = true
 
+    // Paint the buffer transparent and push it before tearing anything down.
+    // Losing a context leaves its drawing buffer undefined, and the compositor
+    // can present that undefined buffer as an opaque white rectangle for a
+    // single frame — which on a full-bleed canvas is a full-width white flash.
+    gl.clearColor(0, 0, 0, 0)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    gl.flush()
+
     gl.deleteVertexArray(vertexArray)
     gl.deleteBuffer(buffer)
     gl.deleteProgram(program)

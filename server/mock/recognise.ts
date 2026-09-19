@@ -10,9 +10,15 @@ import type { Recognition, Utterance } from '#shared/types/domain'
  * a single line on the screen.
  *
  * What it cannot do is understand, because it is given no audio to understand.
- * It is handed the shape of the sound, and it answers with one of the questions
- * this project knows, chosen from that shape. So the words are a stand-in; the
- * boundary, the failure modes and the confidence are not.
+ * So it does not pretend to: every utterance it can hear at all resolves to the
+ * one question this demo answers, and the words are openly a stand-in. What is
+ * real is everything around them — the boundary, the measurements, the
+ * confidence, and the difference between a question it could not make out and
+ * one it has no answer for.
+ *
+ * Choosing *between* questions from the shape of the sound was tried and
+ * removed. It could only ever be arbitrary, and arbitrary reads as broken: the
+ * answer on screen changed every time you spoke, for reasons nobody could see.
  */
 
 /** Below this, the agent says it did not catch the question rather than guess. */
@@ -28,23 +34,6 @@ const MIN_PEAK = 0.08
 const CLEAR_UTTERANCE_MS = 1600
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
-
-/**
- * A stable number for an utterance, so the same sound always yields the same
- * question. Spread across the bands rather than taken from duration alone —
- * keyed only on length, every short question would be the same question.
- */
-const signature = (utterance: Utterance): number => {
-  const [bass, mid, treble] = utterance.profile
-  return Math.round(
-    utterance.voicedMs * 0.37
-    + utterance.peak * 613
-    + utterance.mean * 971
-    + bass * 149
-    + mid * 233
-    + treble * 317,
-  )
-}
 
 /**
  * How sure the agent is, from how much there was to go on. A long, clearly
@@ -70,12 +59,12 @@ export const recognise = (
   utterance: Utterance,
   questions: readonly string[],
 ): Recognition | null => {
-  if (questions.length === 0) return null
   if (utterance.voicedMs < MIN_VOICED_MS) return null
   if (utterance.peak < MIN_PEAK) return null
 
-  const index = signature(utterance) % questions.length
-  const question = questions[index]
+  // The opening question: the one this demo answers, and the one the deck is
+  // already showing when it is arrived at to be spoken to.
+  const [question] = questions
   if (!question) return null
 
   return { question, confidence: confidenceOf(utterance) }

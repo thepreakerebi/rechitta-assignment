@@ -146,11 +146,14 @@ const askSpoken = (utterance: Utterance | null) => {
 
 const DEFAULT_QUESTION = 'What makes this the perfect first investment?'
 
-/** Play her answer again, or stop her saying it. */
-const replay = () => {
-  const src = answer.value?.voice
-  if (voice.isSpeaking.value) return voice.silence()
-  if (src) void voice.speak(src)
+/**
+ * Done with her reply: she stops mid-sentence if she is still talking, and the
+ * header goes back to what it was. The answer itself stays — it is the one on
+ * screen, and clearing the conversation is not the same as undoing it.
+ */
+const clear = () => {
+  voice.silence()
+  replying.value = false
 }
 
 const panels = computed(() => answer.value?.panels ?? [])
@@ -264,16 +267,15 @@ watch(panels, () => {
   >
     <AgentHeader
       class="header"
-      :question="asked ?? DEFAULT_QUESTION"
+      :question="asked ?? undefined"
       :back-to="briefing"
       :primed="primed"
       :voice="voice.readDrive"
       :speaking="voice.isSpeaking.value"
       :transcript="replying ? answer?.transcript : undefined"
-      :has-voice="Boolean(answer?.voice)"
       @ask="askSpoken"
       @listen="voice.silence"
-      @replay="replay"
+      @clear="clear"
     />
 
     <!-- A question she could not make out leaves the answer already on screen

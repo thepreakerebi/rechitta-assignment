@@ -92,11 +92,17 @@ measurements.
 
 Recognition happens **behind the API**, where a transcription service would
 live in production, not in the browser. `server/mock/recognise.ts` stands in for
-one: it cannot understand, because it is handed no audio to understand, so it
-answers with one of the seven questions this project knows, chosen stably from
-the shape of the sound, with a confidence. **The words are a stand-in; the
-boundary, the failure modes and the confidence are not.** Swapping that file for
-a real service would not change a line of interface code.
+one — and it does not pretend to understand, because it is handed no audio to
+understand. Every utterance it can hear at all resolves to the question the deck
+is already showing, with a confidence taken from how much there was to go on.
+**The words are a stand-in; the boundary, the measurements, the failure modes
+and the confidence are not.** Swapping that file for a real service would not
+change a line of interface code.
+
+> Choosing *between* questions from the shape of the sound was built, and
+> removed. It could only ever be arbitrary, and arbitrary reads as broken: the
+> deck's own three panels changed every time you spoke, for reasons nobody
+> could see.
 
 She then answers out loud — and only then. Arriving from a chapter's arrow or a
 shared link is reading, and reading should not start a recording of someone
@@ -109,6 +115,16 @@ talking at you.
 > microphone uses** — so the orb moves to her voice by exactly the four numbers
 > it moves to yours. The clips are macOS `say` output, standing in for the TTS
 > vendor a production agent would call.
+
+The header's second line is the conversation. Before anything is said it asks
+for it — *"Click mic to speak and stop speaking"*, and *"Tap"* where the pointer
+is a finger or the window is phone-width — and once something has been said it
+holds that, quoted. A question nobody asked is not a question, so it is not
+quoted as one.
+
+Her reply appears in words beneath it, with one control: **Clear**, which stops
+her mid-sentence if she is still talking and puts the header back the way it
+was.
 
 Three outcomes, three different screens. A question she could not make out is a
 toast that leaves the answer already on screen alone; a question with no answer

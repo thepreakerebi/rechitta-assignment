@@ -64,6 +64,14 @@ export const useAgentVoice = () => {
     audio.preload = 'auto'
     audio.crossOrigin = 'anonymous'
     audio.addEventListener('ended', onEnded)
+    /*
+     * In the document, though it draws nothing without `controls`. An element
+     * held only in a closure plays perfectly well and is invisible to anything
+     * looking at the page — including a test asking whether she actually
+     * stopped, which could then only ever answer yes.
+     */
+    audio.hidden = true
+    document.body.append(audio)
 
     if (typeof AudioContext === 'undefined') {
       // Playable, but nothing can be drawn from it. She still speaks; the orb
@@ -153,6 +161,7 @@ export const useAgentVoice = () => {
   onScopeDispose(() => {
     audio?.removeEventListener('ended', onEnded)
     audio?.pause()
+    audio?.remove()
     source?.disconnect()
     analyser?.disconnect()
     void context?.close().catch(() => undefined)

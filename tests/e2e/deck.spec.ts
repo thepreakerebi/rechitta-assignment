@@ -26,10 +26,14 @@ const panels = (page: Page) => page.locator('main .slide')
 const asked = (page: Page) => page.locator('main header h1')
 
 test.describe('04 · Deck', () => {
-  test('opens on her answer, with the question it answers', async ({ page }) => {
+  test('opens on her answer, and invites the question rather than quoting one', async ({ page }) => {
     await open(page)
 
-    await expect(asked(page)).toContainText('What makes this the perfect first investment?')
+    // Arrived at without a question, the line asks for one: nobody has said
+    // anything yet, and a quotation with no speaker in it is a fiction. Her
+    // opening answer is on screen all the same.
+    await expect(asked(page)).toContainText(/mic to speak/i)
+    await expect(asked(page).locator('q')).toHaveCount(0)
     await expect(page.getByRole('heading', { level: 2, name: /Project overview/i })).toBeVisible()
     await expect(panels(page)).toHaveCount(3)
   })

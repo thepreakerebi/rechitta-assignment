@@ -41,9 +41,12 @@ const deck = computed(() => `/project/${props.slug}/answer`)
     <!-- The pane clips; the header does not. The controls have to hang past
          the bottom edge onto the first chapter, as they do in the comp. -->
     <figure class="pane">
-      <p class="welcome">
+      <!-- The page's one heading. The feed had none at all: seven chapters
+           of h2 under nothing, which is a heading level skipped on the very
+           first line of the document. -->
+      <h1 class="welcome">
         Welcome <em class="not-italic">👋</em>
-      </p>
+      </h1>
 
       <figure class="stage">
         <figure class="orb-well">

@@ -1,24 +1,159 @@
 <script setup lang="ts">
+import TheToast from '~/components/ui/TheToast.vue'
+import { firstInvalid, validateBooking } from '~/utils/booking'
+import type { BookingErrors } from '~/utils/booking'
+import type { Appointment, AppointmentSlot } from '#shared/types/domain'
+
 /**
  * The close of the feed: the one thing the whole briefing is asking for.
  *
  * Everything above it is the project explaining itself; this is the only place
- * that wants something back, so it is the only card on the screen with a
- * border and a filled button.
+ * that wants something back, so it is the only card with a border and a filled
+ * button — and the only one that opens.
+ *
+ * It opens in place rather than navigating. The briefing is the argument for
+ * booking, and taking someone away from it to fill in three fields asks them to
+ * carry that argument in their head. The button stays where it is and becomes
+ * the one that confirms.
  */
 
-defineProps<{
+const props = defineProps<{
   projectName: string
+  projectSlug: string
   developer: string
 }>()
+
+const open = ref(false)
+const submitting = ref(false)
+const submitted = ref(false)
+const booking = ref<Appointment | null>(null)
+const failure = ref<string | null>(null)
+
+const name = ref('')
+const email = ref('')
+const slot = ref('')
+
+const nameField = ref<HTMLInputElement | null>(null)
+const emailField = ref<HTMLInputElement | null>(null)
+const slotGroup = ref<HTMLElement | null>(null)
+
+/*
+ * The slots are not fetched until the form opens. They are the bottom of a
+ * 4,000px page and most visitors will never reach them; requesting them on load
+ * spends someone's connection on a screen they have not asked for yet.
+ */
+const {
+  data: slots,
+  status: slotStatus,
+  error: slotError,
+  execute: loadSlots,
+  refresh: retrySlots,
+} = useApiFetch<readonly AppointmentSlot[]>('/api/appointments/slots', {
+  key: 'appointment-slots',
+  immediate: false,
+})
+
+const scenario = useScenarioQuery()
+
+const slotsLoading = computed(() => open.value && ['pending', 'idle'].includes(slotStatus.value))
+const available = computed(() => (slots.value ?? []).filter(candidate => candidate.available))
+
+const draft = computed(() => ({ name: name.value, email: email.value, slot: slot.value }))
+
+/*
+ * Errors are withheld until the form has been sent once. Marking a field wrong
+ * before anyone has attempted it scolds them for not having typed yet; after
+ * that first attempt they update live, so a fix is acknowledged immediately.
+ */
+const errors = computed<BookingErrors>(() => (submitted.value ? validateBooking(draft.value) : {}))
+
+const expand = async () => {
+  open.value = true
+  await loadSlots()
+}
+
+const focusField = (field: ReturnType<typeof firstInvalid>) => {
+  if (field === 'name') nameField.value?.focus()
+  else if (field === 'email') emailField.value?.focus()
+  else slotGroup.value?.querySelector<HTMLInputElement>('input:not([disabled])')?.focus()
+}
+
+const submit = async () => {
+  submitted.value = true
+  failure.value = null
+
+  const found = validateBooking(draft.value)
+  if (Object.keys(found).length > 0) {
+    // Sending someone back to the top of a form to hunt for the problem is the
+    // same as not telling them where it is.
+    await nextTick()
+    return focusField(firstInvalid(found))
+  }
+
+  submitting.value = true
+
+  try {
+    booking.value = await $fetch<Appointment>('/api/appointments', {
+      method: 'POST',
+      query: scenario.value,
+      body: {
+        name: name.value.trim(),
+        email: email.value.trim(),
+        slot: slot.value,
+        projectSlug: props.projectSlug,
+      },
+    })
+  }
+  catch (error) {
+    // A taken slot is the one failure the person can actually act on, so it is
+    // the one whose message is worth repeating. Everything else gets a sentence
+    // that says what to do rather than what went wrong.
+    const status = (error as { statusCode?: number }).statusCode
+    failure.value = status === 409
+      ? 'That time was taken while you were filling this in. Choose another and we will confirm it.'
+      : 'That booking did not go through. Nothing has been reserved — try again.'
+
+    if (status === 409) await retrySlots()
+  }
+  finally {
+    submitting.value = false
+  }
+}
+
+/**
+ * One control, one event.
+ *
+ * The button was `type="button"` when closed and `type="submit"` when open,
+ * which looked right and fired twice: Vue flushes DOM updates in a microtask,
+ * and microtasks run before the browser carries out a click's default action —
+ * so the very click that opened the form found a submit button by the time the
+ * browser acted on it, and submitted the empty form it had just revealed.
+ *
+ * It stays a submit button throughout and the form decides what submitting
+ * means, which also keeps Enter working from inside a field.
+ */
+const onSubmit = () => (open.value ? submit() : expand())
+
+const label = computed(() => {
+  if (submitting.value) return 'Confirming…'
+  return open.value ? 'Confirm booking' : 'Book Appointment'
+})
+
+const toast = computed(() =>
+  booking.value
+    ? `Viewing confirmed for ${booking.value.slotLabel}. Your reference is ${booking.value.reference}.`
+    : null,
+)
 </script>
 
 <template>
   <section
-    class="request mx-auto flex w-full max-w-column flex-col items-center gap-3 rounded-panel border border-gold/10 bg-white/3 p-[clamp(1.5rem,5cqi,2.5rem)] text-center backdrop-blur-[10px]"
+    class="request"
     aria-labelledby="viewing-heading"
   >
-    <p class="grid size-16 place-items-center rounded-pill bg-gold/10">
+    <TheToast :message="toast" />
+
+    <p class="badge">
       <img
         class="h-6 w-[1.3125rem]"
         src="/icons/calendar-check.svg"
@@ -32,28 +167,204 @@ defineProps<{
       id="viewing-heading"
       class="pt-1 text-balance text-[clamp(1.15rem,1rem+0.6cqi,1.6rem)] font-normal leading-[1.6] text-white"
     >
-      Schedule Private Viewing
+      {{ booking ? 'Your viewing is booked' : 'Schedule Private Viewing' }}
     </h2>
 
-    <p class="max-w-[20rem] text-pretty pb-3 text-[clamp(0.8rem,0.75rem+0.3cqi,1rem)] leading-[1.45] text-note-text">
-      Experience {{ projectName }} with our exclusive tour
-    </p>
+    <!-- Booked. The form has done its job and goes; what is left is the thing
+         they will need to quote on the day. -->
+    <template v-if="booking">
+      <p class="max-w-[22rem] text-pretty text-[clamp(0.8rem,0.75rem+0.3cqi,1rem)] leading-[1.5] text-note-text">
+        We have emailed <strong class="font-medium text-text">{{ booking.email }}</strong>.
+        A member of the team will meet you at {{ projectName }}.
+      </p>
 
-    <p>
-      <NuxtLink
-        class="flex min-h-11 items-center justify-center gap-2 rounded-pill bg-white px-5 py-3 font-ui text-ui font-medium text-[#292929] transition-[transform,background-color] duration-(--duration-quick) hover:bg-bone active:scale-[0.98]"
-        to="/book"
+      <dl class="receipt">
+        <dt>When</dt>
+        <dd>
+          <time :datetime="booking.slot">{{ booking.slotLabel }}</time>
+        </dd>
+        <dt>Reference</dt>
+        <dd><data :value="booking.reference">{{ booking.reference }}</data></dd>
+      </dl>
+    </template>
+
+    <template v-else>
+      <p class="max-w-[20rem] text-pretty text-[clamp(0.8rem,0.75rem+0.3cqi,1rem)] leading-[1.45] text-note-text">
+        Experience {{ projectName }} with our exclusive tour
+      </p>
+
+      <form
+        class="booking"
+        novalidate
+        @submit.prevent="onSubmit"
       >
-        Book Appointment
-        <img
-          class="size-5"
-          src="/icons/arrow-right.svg"
-          alt=""
-          width="20"
-          height="20"
+        <!-- The disclosure. Closed it is a zero-height row; open it is the
+             height of its own content, so the button below is pushed down by
+             exactly as much room as the fields need. -->
+        <fieldset
+          class="disclosure"
+          :class="{ 'is-open': open }"
+          :aria-hidden="!open"
+          :inert="!open || undefined"
         >
-      </NuxtLink>
-    </p>
+          <legend class="visually-hidden">Your viewing details</legend>
+
+          <ul class="fields">
+            <li>
+              <fieldset
+                ref="slotGroup"
+                class="min-w-0"
+              >
+                <legend class="caps-meta mb-2">Choose a time</legend>
+
+                <!-- Loading: the chips' own shape, so nothing jumps when the
+                     times arrive. -->
+                <ul
+                  v-if="slotsLoading"
+                  class="chips"
+                  aria-busy="true"
+                >
+                  <li
+                    v-for="width in ['8.5rem', '9.5rem', '8rem', '9rem']"
+                    :key="width"
+                  >
+                    <i
+                      class="skeleton block h-11 rounded-card"
+                      :style="{ inlineSize: width }"
+                    />
+                  </li>
+                  <li class="visually-hidden">Fetching the available times.</li>
+                </ul>
+
+                <p
+                  v-else-if="slotError"
+                  class="note"
+                >
+                  The times did not load.
+                  <button
+                    class="underline decoration-from-font underline-offset-2 hover:decoration-2"
+                    type="button"
+                    @click="retrySlots()"
+                  >Try again</button>
+                </p>
+
+                <p
+                  v-else-if="available.length === 0"
+                  class="note"
+                >
+                  Every viewing this week is taken. Email
+                  <a
+                    class="text-text-bright underline decoration-from-font underline-offset-2"
+                    href="mailto:viewings@rechitta.com"
+                  >viewings@rechitta.com</a>
+                  and we will find you one.
+                </p>
+
+                <ul
+                  v-else
+                  class="chips"
+                >
+                  <li
+                    v-for="option in slots"
+                    :key="option.id"
+                  >
+                    <label
+                      class="chip"
+                      :class="{ 'is-taken': !option.available }"
+                    >
+                      <input
+                        v-model="slot"
+                        class="visually-hidden"
+                        type="radio"
+                        name="slot"
+                        :value="option.iso"
+                        :disabled="!option.available"
+                        :aria-invalid="Boolean(errors.slot)"
+                      >
+                      <time :datetime="option.iso">{{ option.label }}</time>
+                      <!-- The reason a control is unavailable is on the control,
+                           never hidden in a tooltip nobody on a tablet can see. -->
+                      <small
+                        v-if="!option.available"
+                        class="taken"
+                      >Taken</small>
+                    </label>
+                  </li>
+                </ul>
+              </fieldset>
+            </li>
+
+            <li>
+              <p class="field">
+                <label for="booking-name">Your name</label>
+                <small id="booking-name-help">Whoever will be meeting us at the door.</small>
+                <input
+                  id="booking-name"
+                  ref="nameField"
+                  v-model="name"
+                  type="text"
+                  name="name"
+                  autocomplete="name"
+                  aria-describedby="booking-name-help"
+                  :aria-invalid="Boolean(errors.name)"
+                  :class="{ 'is-wrong': errors.name }"
+                >
+              </p>
+            </li>
+
+            <li>
+              <p class="field">
+                <label for="booking-email">Email</label>
+                <small id="booking-email-help">We send the confirmation and the directions here.</small>
+                <input
+                  id="booking-email"
+                  ref="emailField"
+                  v-model="email"
+                  type="email"
+                  name="email"
+                  autocomplete="email"
+                  inputmode="email"
+                  aria-describedby="booking-email-help"
+                  :aria-invalid="Boolean(errors.email)"
+                  :class="{ 'is-wrong': errors.email }"
+                >
+              </p>
+            </li>
+            <!-- Every problem in one place, announced as it changes, and
+                 inside the list so the panel has a single row to collapse. A
+                 second grid child keeps its own auto row and the disclosure
+                 never quite closes. -->
+            <li>
+              <output class="problems">
+                <template v-if="errors.slot || errors.name || errors.email || failure">
+                  <strong class="font-medium text-alert">Needs a moment.</strong>
+                  {{ errors.slot ?? errors.name ?? errors.email ?? failure }}
+                </template>
+              </output>
+            </li>
+          </ul>
+        </fieldset>
+
+        <p class="action">
+          <button
+            class="cta"
+            type="submit"
+            :aria-expanded="open"
+            :aria-busy="submitting"
+            :disabled="submitting"
+          >
+            {{ label }}
+            <img
+              class="size-5"
+              src="/icons/arrow-right.svg"
+              alt=""
+              width="20"
+              height="20"
+            >
+          </button>
+        </p>
+      </form>
+    </template>
 
     <p class="text-small leading-[1.35] text-text-faint">
       <cite class="not-italic">{{ developer }}</cite>
@@ -64,5 +375,284 @@ defineProps<{
 <style scoped>
 .request {
   container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  inline-size: 100%;
+  max-inline-size: var(--spacing-column);
+  margin-inline: auto;
+  padding: clamp(1.5rem, 5cqi, 2.5rem);
+  text-align: center;
+  border: 1px solid rgb(198 160 89 / 0.1);
+  border-radius: var(--radius-panel);
+  background-color: rgb(255 255 255 / 0.03);
+  backdrop-filter: blur(10px);
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  inline-size: 4rem;
+  block-size: 4rem;
+  border-radius: var(--radius-pill);
+  background-color: rgb(198 160 89 / 0.1);
+}
+
+.booking {
+  inline-size: 100%;
+}
+
+/*
+ * The disclosure, as a grid row that grows from nothing to the height of its
+ * own content.
+ *
+ * This is the one place the transform-and-opacity rule cannot hold: opening
+ * *is* a change of height, and the alternative — scaling — would stretch the
+ * type inside. The row is the only thing that animates; everything in it moves
+ * on opacity and translate.
+ */
+.disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  inline-size: 100%;
+  min-inline-size: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  transition: grid-template-rows var(--duration-slow) var(--ease-out-soft);
+}
+
+.disclosure.is-open {
+  grid-template-rows: 1fr;
+}
+
+.fields {
+  min-block-size: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: start;
+}
+
+/* The gap before the button lives on the last item, not on the list. On the
+   list it survives the collapse — a fieldset keeps its padding even when its
+   grid row is zero — and the disclosure never quite shuts. */
+.fields > li:last-child {
+  padding-block-end: 1.25rem;
+}
+
+/* Each field arrives after the row has started opening, a beat apart, so the
+   form assembles rather than appearing. */
+.fields > li {
+  opacity: 0;
+  translate: 0 -0.5rem;
+  transition:
+    opacity var(--duration-base) var(--ease-out-soft),
+    translate var(--duration-base) var(--ease-out-soft);
+}
+
+.disclosure.is-open .fields > li {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.disclosure.is-open .fields > li:nth-child(2) {
+  transition-delay: 80ms;
+}
+
+.disclosure.is-open .fields > li:nth-child(3) {
+  transition-delay: 160ms;
+}
+
+.disclosure.is-open .fields > li:nth-child(4) {
+  transition-delay: 200ms;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/*
+ * A real radio behind each chip: native arrow-key navigation, native checked
+ * state, a real accessible name. The label wears the focus ring, because a ring
+ * drawn on a visually hidden 1px input is a ring nobody can see.
+ */
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-card);
+  font-size: var(--text-small);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    border-color var(--duration-quick) var(--ease-out-soft);
+}
+
+.chip:hover:not(.is-taken) {
+  border-color: var(--color-gold);
+}
+
+.chip:has(:checked) {
+  border-color: rgb(198 160 89 / 0.6);
+  background-color: var(--color-gold-soft);
+  color: var(--color-text);
+}
+
+.chip:has(:focus-visible) {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+.chip.is-taken {
+  cursor: not-allowed;
+  color: var(--color-text-faint);
+  border-style: dashed;
+}
+
+.taken {
+  font-size: var(--text-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-text-faint);
+}
+
+/* Helper text sits between the label and the control. A placeholder is never
+   the label. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field label {
+  font-family: var(--font-ui);
+  font-size: var(--text-small);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.field small {
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--color-note-text);
+}
+
+.field input {
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  transition: border-color var(--duration-quick) var(--ease-out-soft);
+}
+
+.field input:focus {
+  border-color: rgb(198 160 89 / 0.6);
+}
+
+.field input.is-wrong {
+  border-color: rgb(255 58 58 / 0.7);
+}
+
+.problems {
+  display: block;
+  text-align: start;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.note {
+  font-size: var(--text-small);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.action {
+  display: flex;
+  justify-content: center;
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-pill);
+  background-color: #ffffff;
+  color: #292929;
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  transition:
+    transform var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft);
+}
+
+.cta:hover {
+  background-color: var(--color-bone);
+}
+
+.cta:active {
+  transform: scale(0.98);
+}
+
+.cta:disabled {
+  opacity: 0.7;
+}
+
+.receipt {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.35rem 1.5rem;
+  align-items: baseline;
+  padding-block: 0.25rem 0.5rem;
+  text-align: start;
+}
+
+.receipt dt {
+  font-size: var(--text-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.receipt dd {
+  font-size: var(--text-ui);
+  color: var(--color-text);
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-surface-raised) 50%,
+    var(--color-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: sheen 1.4s var(--ease-in-out-soft) infinite;
+}
+
+@keyframes sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 </style>

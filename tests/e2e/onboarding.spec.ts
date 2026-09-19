@@ -77,7 +77,7 @@ test.describe('02 · Onboarding', () => {
     await open(page, '/onboarding')
 
     await page.getByRole('button', { name: /allow microphone/i }).click()
-    await expect(page.locator('main output'))
+    await expect(page.locator('output.toast'))
       .toContainText(/microphone connected/i, { timeout: 20_000 })
 
     const calls = await micCalls(page)
@@ -100,7 +100,7 @@ test.describe('02 · Onboarding · microphone granted', () => {
 
     // Moving someone the instant a system dialog closes gives them no chance to
     // see that it worked, so the screen confirms and waits.
-    await expect(page.locator('main output'))
+    await expect(page.locator('output.toast'))
       .toContainText(/microphone connected/i, { timeout: 20_000 })
     await expect(page).toHaveURL(/\/onboarding$/)
 
@@ -168,7 +168,7 @@ test.describe('02 · Onboarding · microphone refused', () => {
     // Matched on the element rather than the role, because the app's route
     // announcer is a status region too and the page must not depend on which
     // one wins.
-    const explanation = page.locator('main output')
+    const explanation = page.locator('output.toast')
 
     // Wait for the screen to settle before reading it. Asking `isVisible` the
     // instant the navigation resolves is a race with hydration, and a false

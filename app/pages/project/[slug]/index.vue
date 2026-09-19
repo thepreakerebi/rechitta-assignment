@@ -115,6 +115,7 @@ const greeting = computed(() => {
     <footer class="px-edge py-[clamp(1.5rem,6vh,3rem)]">
       <ViewingRequest
         :project-name="project?.name ?? 'this project'"
+        :project-slug="slug"
         :developer="project?.developer ?? 'Prestige Properties Group'"
       />
     </footer>

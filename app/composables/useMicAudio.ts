@@ -54,6 +54,12 @@ const isAbortLike = (error: unknown) =>
  */
 export const useMicAudio = () => {
   const status = ref<MicStatus>('idle')
+  /**
+   * Whether this origin has already been granted the microphone in a previous
+   * visit. Distinct from `status`, which describes the current session: a
+   * returning visitor has consented but is not yet listening.
+   */
+  const hasPriorConsent = ref(false)
 
   let context: AudioContext | null = null
   let analyser: AnalyserNode | null = null
@@ -79,20 +85,31 @@ export const useMicAudio = () => {
     smoothed = SILENT_DRIVE
   }
 
-  /** Reads the current permission without prompting, where the browser allows it. */
+  /**
+   * Reads the current permission without prompting, where the browser allows
+   * it, and applies what it finds. A screen that already knows the microphone
+   * is refused should not offer to ask for it again — only the browser's own
+   * controls can undo that.
+   */
   const peekPermission = async (): Promise<MicStatus> => {
-    if (!import.meta.client || !navigator.mediaDevices?.getUserMedia) return 'unsupported'
-    if (!navigator.permissions?.query) return 'idle'
+    const found = await (async (): Promise<MicStatus> => {
+      if (!import.meta.client || !navigator.mediaDevices?.getUserMedia) return 'unsupported'
+      if (!navigator.permissions?.query) return 'idle'
 
-    try {
-      const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-      if (result.state === 'denied') return 'blocked'
-      return 'idle'
-    }
-    catch {
-      // Firefox and Safari have historically rejected this query outright.
-      return 'idle'
-    }
+      try {
+        const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+        hasPriorConsent.value = result.state === 'granted'
+        return result.state === 'denied' ? 'blocked' : 'idle'
+      }
+      catch {
+        // Firefox and Safari have historically rejected this query outright.
+        return 'idle'
+      }
+    })()
+
+    // Never downgrade a live session back to idle.
+    if (status.value === 'idle') status.value = found
+    return found
   }
 
   const start = async () => {
@@ -187,6 +204,7 @@ export const useMicAudio = () => {
 
   return {
     status: readonly(status),
+    hasPriorConsent: readonly(hasPriorConsent),
     isListening: computed(() => status.value === 'listening'),
     peekPermission,
     start,

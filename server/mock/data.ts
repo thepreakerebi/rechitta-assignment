@@ -9,7 +9,7 @@ import type {
 /**
  * The seed data, transcribed from the Figma design.
  *
- * Four inconsistencies in the comp are corrected here rather than reproduced,
+ * Five inconsistencies in the comp are corrected here rather than reproduced,
  * and each is noted where it occurs:
  *
  *  1. "Investment from AED 2.8M" sat above a unit list whose highest price was
@@ -20,6 +20,9 @@ import type {
  *     one on the card that names the project.
  *  3. Two different units were both numbered #528. The second becomes #512.
  *  4. "Berkley Square North" on the booking card is spelt Berkeley everywhere.
+ *  5. The Amenities feed card repeated the Returns card's metric — RENTAL ROI
+ *     12.73% under a heading about the podium gardens. Amenities are given a
+ *     metric of their own.
  */
 
 const AED = (dirhams: number) => Math.round(dirhams * 100)
@@ -101,8 +104,10 @@ export const project: Project = {
       id: 'amenities',
       eyebrow: 'Amenities',
       title: 'The Life Here',
-      metricLabel: 'Rental ROI',
-      metricValue: '12.73%',
+      // The comp repeated the Returns card's metric here, which put a rental
+      // yield under a heading about the podium gardens. See note 5 above.
+      metricLabel: 'Amenity deck',
+      metricValue: '1.2 acres',
       hero: { src: '/images/amenities.jpg', alt: 'The podium gardens, fountains playing beside a children’s play area.' },
     },
   ],

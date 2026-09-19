@@ -24,6 +24,10 @@ const open = async (page: Page, path = DECK, size = PHONE) => {
   await page.waitForLoadState('networkidle')
 }
 
+/** Only the project launched with a fake capture device can be granted one. */
+const needsFakeDevice = () =>
+  test.skip(test.info().project.name !== 'chromium-mic-granted', 'needs a fake capture device')
+
 const mic = (page: Page) => page.locator('main header button.mic')
 
 /** Say something to her: open the microphone, talk, stop. */
@@ -55,10 +59,15 @@ test.describe('04b · The agent endpoint', () => {
     const response = await askWith(request, { kind: 'utterance', utterance: SPOKEN })
     expect(response.status()).toBe(200)
 
-    const answer = await response.json() as { question: string, heard?: { confidence: number } }
+    const answer = await response.json() as {
+      question: string
+      panels: unknown[]
+      heard?: { confidence: number }
+    }
 
     // Recognised, not echoed: the client never sent any words to echo.
-    expect(answer.question.length).toBeGreaterThan(4)
+    expect(answer.question).toBe('What makes this the perfect first investment?')
+    expect(answer.panels).toHaveLength(3)
     expect(answer.heard?.confidence).toBeGreaterThan(0)
   })
 
@@ -101,7 +110,36 @@ test.describe('04b · The agent endpoint', () => {
   })
 })
 
+/** She has a voice, and none of this needs one to be granted. */
+test.describe('04b · Before she is spoken to', () => {
+  // She is not a narrator: arriving from a chapter's arrow or a shared link is
+  // reading, and reading should not start a recording of someone talking at you.
+  test('says nothing at all until she is spoken to', async ({ page }) => {
+    const clips: string[] = []
+    page.on('response', (response) => {
+      if (response.url().includes('/audio/')) clips.push(response.url())
+    })
+
+    await open(page)
+    await expect(page.locator('main .slide').first()).toBeVisible()
+
+    expect(clips).toHaveLength(0)
+    await expect(caption(page)).toHaveCount(0)
+  })
+
+  // The line that will hold what was said has to say something before anything
+  // has been: a question nobody asked is not a question.
+  test('invites a question rather than quoting one nobody asked', async ({ page }) => {
+    await open(page)
+
+    await expect(page.locator('main header h1')).toContainText(/mic to speak/i)
+    await expect(page.locator('main header h1 q')).toHaveCount(0)
+  })
+})
+
 test.describe('04b · Speaking to her', () => {
+  test.beforeEach(needsFakeDevice)
+
   test('sends what it measured, and never the audio', async ({ page }) => {
     await open(page)
 
@@ -143,20 +181,24 @@ test.describe('04b · Speaking to her', () => {
     await expect(page.locator('main header h1')).toContainText(heard)
   })
 
-  // She has a voice; she is not a narrator. Arriving from a chapter's arrow or
-  // a shared link is reading, and reading should not start a recording of
-  // someone talking at you.
-  test('says nothing at all until she is spoken to', async ({ page }) => {
-    const clips: string[] = []
-    page.on('response', (response) => {
-      if (response.url().includes('/audio/')) clips.push(response.url())
-    })
-
+  /*
+   * The deck is one answer with three panels, and speaking to her is asking
+   * about the thing already on screen. An answer that swapped its own slides
+   * every time somebody spoke read as a bug, because that is what it was.
+   */
+  test('answers the question the deck is already showing, and keeps its panels', async ({ page }) => {
     await open(page)
-    await expect(page.locator('main .slide').first()).toBeVisible()
 
-    expect(clips).toHaveLength(0)
-    await expect(caption(page)).toHaveCount(0)
+    const panels = await page.locator('main .slide').count()
+
+    await speakTo(page)
+    await expect(caption(page)).toBeVisible({ timeout: 15_000 })
+
+    // The invitation is replaced by what she heard, in the same line.
+    await expect(page.locator('main header h1')).not.toContainText(/mic to speak/i)
+    await expect(page.locator('main header h1 q'))
+      .toHaveText('What makes this the perfect first investment?')
+    await expect(page.locator('main .slide')).toHaveCount(panels)
   })
 
   test('shows her words once she has replied to something said', async ({ page }) => {
@@ -166,10 +208,8 @@ test.describe('04b · Speaking to her', () => {
     await expect(caption(page)).toBeVisible({ timeout: 15_000 })
     await expect(caption(page)).not.toBeEmpty()
 
-    // WCAG 1.4.2: sound that has started can be stopped. It is the same control
-    // that starts it again, which is what anyone actually wants from it.
-    await expect(sound(page)).toBeVisible()
-    await expect(sound(page)).toHaveAttribute('aria-pressed', /true|false/)
+    // WCAG 1.4.2: sound that has started can be stopped.
+    await expect(sound(page)).toHaveText('Clear')
   })
 
   test('her answer is a file the orb can hear, not a voice it has to guess at', async ({ page }) => {
@@ -189,19 +229,25 @@ test.describe('04b · Speaking to her', () => {
     expect(clips[0]).toContain('audio')
   })
 
-  test('playing her answer again is a state the control reports', async ({ page }) => {
+  test('clearing stops her and puts the header back the way it was', async ({ page }) => {
     await open(page)
+
     await speakTo(page)
-    await expect(sound(page)).toBeVisible({ timeout: 15_000 })
+    await expect(caption(page)).toBeVisible({ timeout: 15_000 })
+    const said = await caption(page).innerText()
 
     await sound(page).click()
 
-    // Pressed or not, it says which — movement in an orb is not a state anyone
-    // can name, and a screen reader cannot see it at all.
-    await expect.poll(
-      async () => sound(page).getAttribute('aria-pressed'),
-      { timeout: 10_000 },
-    ).toMatch(/true|false/)
+    await expect(caption(page)).toHaveCount(0)
+    // Her reply is gone from the header, not merely collapsed inside it.
+    await expect(page.locator('main header')).not.toContainText(said.slice(0, 40))
+    // Silent, not merely hidden: a control that only hid the words would leave
+    // her talking to a header that no longer said she was.
+    const paused = await page.evaluate(() =>
+      [...document.querySelectorAll('audio')].map(clip => clip.paused))
+
+    expect(paused).not.toHaveLength(0)
+    expect(paused.every(Boolean)).toBe(true)
   })
 
   test('says so when it could not make out the question, and keeps the answer', async ({ page }) => {
@@ -223,8 +269,13 @@ test.describe('04b · Speaking to her', () => {
     await speakTo(page, 1200)
 
     await expect(page.getByText(/did not catch/i)).toBeVisible({ timeout: 15_000 })
-    // The answer that was already there is still true.
-    await expect(page.locator('main header h1')).toHaveText(before)
+    /*
+     * The answer that was already there is still true. Compared as rendered
+     * text: the line carries both "Click" and "Tap" in its markup with one of
+     * them display:none, and textContent — what toHaveText reads by default —
+     * cannot tell which.
+     */
+    await expect(page.locator('main header h1')).toHaveText(before, { useInnerText: true })
     await expect(page.locator('main .slide').first()).toBeVisible()
   })
 })

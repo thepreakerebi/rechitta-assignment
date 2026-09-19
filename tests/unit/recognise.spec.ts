@@ -25,25 +25,24 @@ describe('recognise', () => {
     const heard = recognise(spoken(), QUESTIONS)
 
     expect(heard).not.toBeNull()
-    expect(QUESTIONS).toContain(heard?.question)
     expect(heard?.confidence).toBeGreaterThanOrEqual(RECOGNITION_FLOOR)
   })
 
-  it('returns the same question for the same utterance, every time', () => {
-    const utterance = spoken({ voicedMs: 1450, peak: 0.71 })
+  /*
+   * It is handed no audio, so it cannot tell one question from another and does
+   * not pretend to. Choosing between them from the shape of the sound was tried
+   * and removed: it could only be arbitrary, and on screen it read as broken —
+   * the answer changed every time you spoke, for reasons nobody could see.
+   */
+  it('resolves every utterance it can hear to the one question on offer', () => {
+    const heard = [
+      spoken(),
+      spoken({ peak: 0.95, mean: 0.8 }),
+      spoken({ voicedMs: 5200, durationMs: 6000 }),
+      spoken({ profile: [0.9, 0.1, 0.05] }),
+    ].map(utterance => recognise(utterance, QUESTIONS)?.question)
 
-    const readings = Array.from({ length: 5 }, () => recognise(utterance, QUESTIONS)?.question)
-
-    expect(new Set(readings).size).toBe(1)
-  })
-
-  // Keyed on duration alone, every short question would be the same question —
-  // which reads as a broken demo long before anyone suspects the recogniser.
-  it('does not give every utterance of the same length the same question', () => {
-    const heard = [0.2, 0.35, 0.5, 0.65, 0.8, 0.95].map(peak =>
-      recognise(spoken({ peak }), QUESTIONS)?.question)
-
-    expect(new Set(heard).size).toBeGreaterThan(1)
+    expect(new Set(heard)).toEqual(new Set([QUESTIONS[0]]))
   })
 
   it('hears nothing in silence', () => {

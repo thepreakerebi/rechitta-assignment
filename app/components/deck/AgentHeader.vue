@@ -21,7 +21,12 @@ import type { Utterance } from '#shared/types/domain'
  */
 
 const props = defineProps<{
-  question: string
+  /**
+   * What she is answering, when that is something anybody asked. Absent until
+   * a question has been put to her — the line then invites one instead of
+   * naming one, because a question nobody asked is not a question.
+   */
+  question?: string
   /** Where back goes — the briefing this answer belongs to. */
   backTo: string
   /** Focus the microphone on arrival, without opening it. */
@@ -37,8 +42,6 @@ const props = defineProps<{
    * or a refusal pushes the header taller.
    */
   transcript?: string
-  /** Whether there is a recording of that answer to stop and start. */
-  hasVoice?: boolean
 }>()
 
 /**
@@ -49,7 +52,8 @@ const emit = defineEmits<{
   ask: [utterance: Utterance | null]
   /** The microphone is about to open, so anything still playing must stop. */
   listen: []
-  replay: []
+  /** Stop her talking and put the header back the way it was. */
+  clear: []
 }>()
 
 const mic = useMicAudio()
@@ -155,7 +159,16 @@ onMounted(async () => {
       <!-- The question, quoted. It is what she is answering, so it belongs in
            the header the answer sits under rather than above one panel of it. -->
       <h1 class="asked">
-        <q>{{ question }}</q>
+        <q v-if="question">{{ question }}</q>
+
+        <!-- Which verb is right depends on the pointer, not the window width:
+             a narrow desktop window is still a mouse, and a wide tablet is
+             still a finger. Only one of the two is ever in the accessibility
+             tree, so it is never read out twice. -->
+        <template v-else>
+          <b class="by-pointer">Click</b><b class="by-touch">Tap</b> mic to speak
+          and stop speaking
+        </template>
       </h1>
     </hgroup>
 
@@ -205,15 +218,14 @@ onMounted(async () => {
       >
         <q class="words">{{ transcript }}</q>
 
-        <!-- WCAG 1.4.2 asks for a way to stop sound that has started. It is
-             also the way to hear it again, which is the commoner need. -->
+        <!-- One control, one meaning: done with this. It stops her mid-sentence
+             if she is still talking, which is also what WCAG 1.4.2 asks for,
+             and leaves the header as it was before anything was said. -->
         <button
-          v-if="hasVoice"
           type="button"
           class="sound"
-          :aria-pressed="speaking"
-          @click="emit('replay')"
-        >{{ speaking ? 'Stop' : 'Play again' }}</button>
+          @click="emit('clear')"
+        >Clear</button>
       </section>
     </Transition>
   </header>
@@ -290,6 +302,26 @@ onMounted(async () => {
 .control {
   display: flex;
   justify-content: flex-end;
+}
+
+/*
+ * One of these two is always display:none, so the line reads correctly and is
+ * announced once. Two conditions, because either alone gets it wrong: a coarse
+ * pointer catches a tablet held in the hand, and the narrow viewport catches a
+ * desktop window sized down to a phone.
+ */
+.by-touch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse), (width < 40rem) {
+  .by-pointer {
+    display: none;
+  }
+
+  .by-touch {
+    display: inline;
+  }
 }
 
 /*

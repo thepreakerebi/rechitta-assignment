@@ -55,8 +55,8 @@ const ask = async (question: string | null) => {
       method: 'POST',
       query: scenario.value,
       body: {
-        question: question ?? DEFAULT_QUESTION,
         projectSlug: session.value?.projectSlug ?? slug.value,
+        ask: { kind: 'text', question: question ?? DEFAULT_QUESTION },
       },
     })
   }

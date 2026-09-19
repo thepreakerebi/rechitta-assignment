@@ -121,11 +121,57 @@ export type Panel =
 
 export type PanelKind = Panel['kind']
 
+/**
+ * What the client measured of something said — and the whole of what it sends.
+ *
+ * Not the audio. The microphone stream is analysed in the browser and released
+ * there; what crosses the wire is the shape of the sound, which is enough for
+ * the agent to act on and is not a recording of anyone. `profile` is the same
+ * three bands the orb runs on, averaged over the utterance.
+ */
+export interface Utterance {
+  /** How long the microphone was open, in milliseconds. */
+  readonly durationMs: number
+  /** How much of that carried speech rather than room noise. */
+  readonly voicedMs: number
+  /** Loudest and average level over the utterance, both 0–1. */
+  readonly peak: number
+  readonly mean: number
+  /** Mean energy in the bass, mid and treble bands, each 0–1. */
+  readonly profile: readonly [number, number, number]
+}
+
+/**
+ * What the agent made of an utterance.
+ *
+ * Separate from the answer because recognition can succeed while the answer is
+ * empty, and can fail while the connection is perfectly healthy. Those are
+ * different states on screen and the interface has to tell them apart.
+ */
+export interface Recognition {
+  /** The words the agent believes it heard. */
+  readonly question: string
+  /** 0–1. Below `RECOGNITION_FLOOR` the agent says so rather than guessing. */
+  readonly confidence: number
+}
+
 export interface Answer {
   readonly id: string
   readonly question: string
   readonly transcript: string
   readonly panels: readonly Panel[]
+  /**
+   * Her side of it, spoken. Pre-rendered rather than synthesised in the browser:
+   * `speechSynthesis` exposes no audio node, so an orb could only pretend to
+   * react to it. A file plays through the same analyser the microphone uses, so
+   * the orb moves to her voice by the same four numbers it moves to yours.
+   *
+   * Absent when there is nothing to say — an answer with no panels is a shrug,
+   * and a shrug was never recorded.
+   */
+  readonly voice?: string
+  /** Present when the question was heard rather than typed or linked to. */
+  readonly heard?: Recognition
 }
 
 export interface Appointment {

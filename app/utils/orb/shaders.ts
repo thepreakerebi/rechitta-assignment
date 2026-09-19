@@ -1,22 +1,21 @@
 /**
- * The orb, drawn rather than photographed.
+ * The orb.
  *
- * The supplied asset is a photograph of a soap bubble on solid black, made to
- * look transparent with `mix-blend-mode: lighten`. That only survives over a
- * dark backdrop, and a bitmap cannot change shape, so the brief's requirement
- * that the orb "react in real time to audio frequencies" would have come down
- * to scaling an image.
+ * Ported from "Gradient Orb" by Kaiyu Hsu (UI Capsule) — https://uicapsule.com/ui/gradient-orb
+ * MIT licensed. The original ships as a React component on three.js and
+ * @react-three/fiber; both are dropped here. Six hundred kilobytes of scene
+ * graph to draw one fullscreen triangle is not a trade worth making, and
+ * @react-three/fiber wraps its canvas in a <div>, which this project bans. The
+ * GLSL is the part that matters and it ports unchanged apart from the move to
+ * GLSL ES 3.00 and the palette.
  *
- * Sampling the reference gives the model this reproduces: an interior that is
- * nearly black (011721 through 022851) and a crescent across the top carrying
- * all of the colour — ivory at the crown, pink and pale magenta beside it,
- * violet below, indigo where it meets the dark. That core is not dark pigment;
- * it is the page showing through a film too thin to reflect, so it is built
- * here out of alpha rather than paint. Which is also what keeps the orb correct
- * over the hero photography, not only over the near-black theme.
- *
- * The silhouette morphs on the same slow cadence as the marketing site's orb —
- * a drift measured in tens of seconds, never a shimmer.
+ * Changes from the original:
+ *  - Colours retuned from blue/purple/orange to the Rechitta film palette read
+ *    off the Figma orb: indigo, violet and warm ivory.
+ *  - Its fixed breathing pulse and rotation are now driven by the microphone.
+ *    Bass opens the core, mid thickens the noise and shifts the hue, treble
+ *    spins the colour wheel, and broadband level deepens the pulse. With no
+ *    audio the idle drive keeps the original's gentle breathing.
  */
 
 export const VERTEX_SHADER = /* glsl */ `#version 300 es
@@ -40,147 +39,143 @@ uniform float uOpacity;
 
 out vec4 fragColor;
 
-// -- noise -------------------------------------------------------------------
+// -- YIQ hue rotation --------------------------------------------------------
 
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-float valueNoise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  // Quintic interpolation: the cubic one leaves lattice creases, which show up
-  // as straight segments once the noise is used to shape an outline.
-  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-  return mix(
-    mix(hash(i),                  hash(i + vec2(1.0, 0.0)), u.x),
-    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-    u.y
+vec3 rgb2yiq(vec3 c) {
+  return vec3(
+    dot(c, vec3(0.299, 0.587, 0.114)),
+    dot(c, vec3(0.596, -0.274, -0.322)),
+    dot(c, vec3(0.211, -0.523, 0.312))
   );
 }
 
-float fbm(vec2 p) {
-  float value = 0.0;
-  float amplitude = 0.5;
-  for (int i = 0; i < 4; i++) {
-    value += amplitude * valueNoise(p);
-    p = p * 2.03 + vec2(1.7, 9.2);
-    amplitude *= 0.5;
-  }
-  return value;
+vec3 yiq2rgb(vec3 c) {
+  return vec3(
+    c.x + 0.956 * c.y + 0.621 * c.z,
+    c.x - 0.272 * c.y - 0.647 * c.z,
+    c.x - 1.106 * c.y + 1.703 * c.z
+  );
 }
 
-// -- film colour -------------------------------------------------------------
+vec3 adjustHue(vec3 color, float hueDeg) {
+  float hueRad = radians(hueDeg);
+  vec3 yiq = rgb2yiq(color);
+  float cosA = cos(hueRad);
+  float sinA = sin(hueRad);
+  yiq.yz = vec2(yiq.y * cosA - yiq.z * sinA, yiq.y * sinA + yiq.z * cosA);
+  return yiq2rgb(yiq);
+}
 
-// Five stops read straight off the reference, cycled the way a real film cycles
-// as it thins. A cosine palette was smoother but could not reach these hues.
-vec3 filmRamp(float x) {
-  vec3 ivory   = vec3(0.855, 0.788, 0.760);
-  vec3 pink    = vec3(0.878, 0.722, 0.815);
-  vec3 magenta = vec3(0.816, 0.612, 0.902);
-  vec3 violet  = vec3(0.451, 0.306, 0.749);
-  vec3 indigo  = vec3(0.125, 0.192, 0.545);
+// -- 3D simplex noise --------------------------------------------------------
 
-  float s = fract(x) * 5.0;
-  float f = smoothstep(0.0, 1.0, fract(s));
-  float i = floor(s);
+vec3 hash33(vec3 p3) {
+  p3 = fract(p3 * vec3(0.1031, 0.11369, 0.13787));
+  p3 += dot(p3, p3.yxz + 19.19);
+  return -1.0 + 2.0 * fract(vec3(p3.x + p3.y, p3.x + p3.z, p3.y + p3.z) * p3.zyx);
+}
 
-  if (i < 0.5) return mix(ivory,   pink,    f);
-  if (i < 1.5) return mix(pink,    magenta, f);
-  if (i < 2.5) return mix(magenta, violet,  f);
-  if (i < 3.5) return mix(violet,  indigo,  f);
-  return mix(indigo, ivory, f);
+float snoise3(vec3 p) {
+  const float K1 = 0.333333333;
+  const float K2 = 0.166666667;
+  vec3 i = floor(p + (p.x + p.y + p.z) * K1);
+  vec3 d0 = p - (i - (i.x + i.y + i.z) * K2);
+  vec3 e = step(vec3(0.0), d0 - d0.yzx);
+  vec3 i1 = e * (1.0 - e.zxy);
+  vec3 i2 = 1.0 - e.zxy * (1.0 - e);
+  vec3 d1 = d0 - (i1 - K2);
+  vec3 d2 = d0 - (i2 - K1);
+  vec3 d3 = d0 - 0.5;
+  vec4 h = max(0.6 - vec4(dot(d0, d0), dot(d1, d1), dot(d2, d2), dot(d3, d3)), 0.0);
+  vec4 n = h * h * h * h * vec4(
+    dot(d0, hash33(i)),
+    dot(d1, hash33(i + i1)),
+    dot(d2, hash33(i + i2)),
+    dot(d3, hash33(i + 1.0))
+  );
+  return dot(vec4(31.316), n);
+}
+
+// -- orb ---------------------------------------------------------------------
+
+vec4 extractAlpha(vec3 colorIn) {
+  float a = max(max(colorIn.r, colorIn.g), colorIn.b);
+  return vec4(colorIn.rgb / (a + 1e-5), a);
+}
+
+// Read off the Figma orb rather than the original's blue/purple/orange.
+const vec3 baseColor0 = vec3(0.180, 0.235, 0.780);  // indigo
+const vec3 baseColor1 = vec3(0.560, 0.330, 0.920);  // violet
+const vec3 baseColor2 = vec3(1.000, 0.870, 0.720);  // warm ivory
+const vec3 baseColor3 = vec3(0.000, 0.000, 0.000);
+
+float light1(float intensity, float attenuation, float dist) {
+  return intensity / (1.0 + dist * attenuation);
+}
+
+float light2(float intensity, float attenuation, float dist) {
+  return intensity / (1.0 + dist * dist * attenuation);
+}
+
+vec4 draw(vec2 uv, float hue, float noiseScale, float innerRadius) {
+  vec3 color0 = adjustHue(baseColor0, hue);
+  vec3 color1 = adjustHue(baseColor1, hue);
+  vec3 color2 = adjustHue(baseColor2, hue);
+  vec3 color3 = adjustHue(baseColor3, hue);
+
+  float len = length(uv);
+  float invLen = len > 0.0 ? 1.0 / len : 0.0;
+
+  // The original's fixed breathing, deepened by broadband loudness.
+  float pulse = sin(uTime * 1.5) * 0.02 + uLevel * 0.07;
+
+  float n0 = snoise3(vec3(uv * noiseScale, uTime * 0.5)) * 0.5 + 0.5;
+
+  float r0 = mix(mix(innerRadius + pulse, 1.0, 0.4), mix(innerRadius + pulse, 1.0, 0.6), n0);
+
+  float d0 = distance(uv, (r0 * invLen) * uv);
+  float v0 = light1(1.0, 10.0, d0);
+  v0 *= smoothstep(r0 * 1.05, r0, len);
+
+  float wheel = uTime * (2.0 + 2.5 * uTreble);
+  float cl = cos(atan(uv.y, uv.x) + wheel) * 0.5 + 0.5;
+
+  float a = uTime * -1.0;
+  vec2 pos = vec2(cos(a), sin(a)) * r0;
+  float d = distance(uv, pos);
+  float v1 = light2(1.5 + uTreble, 5.0, d);
+  v1 *= light1(1.0, 50.0, d0);
+
+  float v2 = smoothstep(1.0, mix(innerRadius, 1.0, n0 * 0.5), len);
+  float v3 = smoothstep(innerRadius, mix(innerRadius, 1.0, 0.5), len);
+
+  vec3 col = mix(color1, color2, cl);
+  col = mix(col, color0, n0);
+  col = mix(color3, col, v0);
+  col = (col + v1) * v2 * v3;
+  col = clamp(col, 0.0, 1.0);
+
+  return extractAlpha(col);
 }
 
 void main() {
-  vec2 centred = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
-  float radius = length(centred);
-  float angle  = atan(centred.y, centred.x);
-  float t      = uTime;
+  vec2 center = uResolution.xy * 0.5;
+  float size = min(uResolution.x, uResolution.y);
+  vec2 uv = (gl_FragCoord.xy - center) / size * 2.0;
 
-  // -- silhouette ------------------------------------------------------------
-  // Two octaves of noise sampled around a circle: broad, smooth bulges that
-  // drift over tens of seconds. The path closes on itself, so there is no seam.
-  vec2 direction = vec2(cos(angle), sin(angle));
-  float organic =
-      (valueNoise(direction * 1.60 + vec2(0.0, t * 0.016)) - 0.5) * 1.00
-    + (valueNoise(direction * 3.10 + vec2(2.7, t * 0.023)) - 0.5) * 0.32;
+  // Bass opens the core, mid thickens the noise and nudges the hue, treble
+  // spins the colour wheel inside draw().
+  float hue         = uMid * 16.0;
+  float noiseScale  = 0.65 + uMid * 0.55;
+  float innerRadius = 0.10 + uBass * 0.16;
 
-  float ripple = 0.0055 * uTreble * sin(angle * 11.0 - t * 1.1);
-  float edgeRadius = 0.330 * (1.0 + 0.150 * organic * (1.0 + 0.4 * uMid) + 0.095 * uBass) + ripple;
+  float rot = uTime * (0.3 + uLevel * 0.35);
+  float s = sin(rot);
+  float c = cos(rot);
+  uv = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
 
-  float feather = mix(0.010, 0.005, uLevel);
-  float body    = 1.0 - smoothstep(edgeRadius - feather, edgeRadius + feather, radius);
-  if (body <= 0.0015) {
-    fragColor = vec4(0.0);
-    return;
-  }
+  vec4 col = draw(uv, hue, noiseScale, innerRadius);
 
-  float normalised = clamp(radius / max(edgeRadius, 1e-4), 0.0, 1.0);
-
-  // -- film thickness --------------------------------------------------------
-  vec2 warped = centred * 2.3;
-  warped += 0.70 * vec2(
-    fbm(warped + vec2(0.0, t * 0.020)),
-    fbm(warped + vec2(5.2, 1.3) - t * 0.017)
-  );
-
-  // Gravity drains the film downward, so it is thickest at the crown. This lays
-  // the colour in sweeps rather than letting it follow the radius into a target.
-  float drain = clamp(0.5 + centred.y / max(edgeRadius * 2.0, 1e-4), 0.0, 1.0);
-
-  // -- where the film is visible at all --------------------------------------
-  // One broad light above and slightly left. Everything outside its reach stays
-  // near-transparent, which is what produces the dark interior.
-  vec2 toward = centred / max(edgeRadius, 1e-4);
-  float lit   = clamp(dot(normalize(vec2(-0.26, 0.97)), toward), -1.0, 1.0);
-  float crown = smoothstep(-0.05, 1.00, lit);
-  float crest = pow(crown, 1.35) * smoothstep(0.08, 0.90, normalised);
-
-  // The ramp is driven by how far a point has fallen away from the crown, so the
-  // crescent runs ivory -> pink -> magenta -> violet -> indigo on the way down,
-  // exactly as it does in the reference. Noise only breaks the sweep up.
-  float thickness =
-      (1.0 - crown) * 0.72
-    + fbm(warped * 1.25) * 0.46
-    + drain * 0.10
-    + pow(normalised, 3.0) * 0.10
-    + uMid * 0.26
-    + 0.04 * sin(t * 0.09);
-
-  vec3 colour = filmRamp(thickness);
-
-  // Seen most edge-on the film reflects the whole spectrum at once, which is why
-  // the very top of a bubble is ivory rather than a rainbow.
-  colour = mix(colour, vec3(0.93, 0.89, 0.84), pow(crown, 3.2) * 0.70);
-
-  // The unlit majority is a cold, almost-black teal — the hue the reference
-  // reads through its lower two thirds.
-  colour = mix(vec3(0.012, 0.075, 0.110), colour, clamp(crest * 1.45 + 0.14, 0.0, 1.0));
-
-  // A faint lip keeps the silhouette legible where the crown does not reach.
-  float lip = smoothstep(0.955, 1.0, normalised);
-  colour += vec3(0.68, 0.70, 0.62) * lip * (0.22 + 0.26 * drain + 0.20 * uTreble);
-
-  // Ripples gathering toward the base, as in the reference.
-  float arcField = normalised * 11.0 + fbm(warped * 0.7) * 4.0 - t * 0.06;
-  colour += vec3(0.55, 0.62, 0.66) * smoothstep(0.94, 1.0, sin(arcField))
-          * smoothstep(0.45, 0.98, normalised) * (1.0 - drain) * 0.35;
-
-  // Two slow highlights keep the surface reading as curved glass.
-  vec2 firstSpot  = vec2(-0.115, 0.140) + 0.014 * vec2(sin(t * 0.17), cos(t * 0.13));
-  vec2 secondSpot = vec2(0.145, 0.055)  + 0.010 * vec2(cos(t * 0.11), sin(t * 0.19));
-  float specular =
-      exp(-dot(centred - firstSpot,  centred - firstSpot)  * 520.0) * 0.50
-    + exp(-dot(centred - secondSpot, centred - secondSpot) * 900.0) * 0.26;
-  colour += vec3(1.0) * specular * (0.30 + 0.60 * uTreble);
-
-  // -- alpha -----------------------------------------------------------------
-  // The film is only opaque where it is lit; elsewhere the page shows through.
-  // This is the whole trick: the dark core is the background, not paint.
-  float film  = 0.09 + 1.05 * crest + 0.08 * uLevel;
-  float alpha = body * clamp(max(film, lip * 0.70), 0.0, 1.0) * uOpacity;
-
-  fragColor = vec4(colour * alpha, alpha);
+  float alpha = col.a * uOpacity;
+  fragColor = vec4(col.rgb * alpha, alpha);
 }
 `

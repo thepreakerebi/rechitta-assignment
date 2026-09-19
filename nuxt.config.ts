@@ -57,7 +57,13 @@ export default defineNuxtConfig({
   },
 
   fonts: {
-    families: [{ name: 'DM Sans', provider: 'google', weights: [400, 500, 700] }],
+    // Three families, because the design uses three: Inter for headings and
+    // body, Space Grotesk for names, DM Sans for controls.
+    families: [
+      { name: 'Inter', provider: 'google', weights: [100, 300, 400, 500, 700] },
+      { name: 'Space Grotesk', provider: 'google', weights: [400, 500] },
+      { name: 'DM Sans', provider: 'google', weights: [400, 500] },
+    ],
   },
 
   app: {

@@ -12,8 +12,12 @@
 --------------------------------------------------------------------------- */
 
 @theme {
-  /* Typeface ------------------------------------------------------------- */
-  --font-sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Typefaces ------------------------------------------------------------ */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Names and titles inside cards. */
+  --font-brand: 'Space Grotesk', var(--font-sans);
+  /* Controls: buttons, tabs, anything you press. */
+  --font-ui: 'DM Sans', var(--font-sans);
 
   /* Surfaces ------------------------------------------------------------- */
   --color-void: #000000;
@@ -21,37 +25,63 @@
   --color-deep: #031317;
   --color-bar: #0b0b0b;
 
+  --color-card: #171717;
+  --color-control: #011d24;
+
   --color-surface: rgb(255 255 255 / 0.04);
   --color-surface-raised: rgb(255 255 255 / 0.07);
   --color-surface-scrim: rgb(0 0 0 / 0.55);
 
   /* Content -------------------------------------------------------------- */
   --color-text: #ffffff;
-  --color-text-muted: rgb(255 255 255 / 0.64);
-  --color-text-faint: rgb(255 255 255 / 0.4);
+  --color-text-bright: #f9f9f9;
+  --color-text-muted: #a3a3a3;
+  --color-text-meta: #a1a1a1;
+  --color-text-faint: #898989;
 
   /* Accents -------------------------------------------------------------- */
   --color-gold: #c6a059;
   --color-gold-soft: rgb(198 160 89 / 0.16);
-  --color-alert: #ff4d4f;
+  --color-alert: #ff3a3a;
+  /* The radial wash behind the splash mark. */
+  --color-glow: #00a9cf;
 
   /* Lines ---------------------------------------------------------------- */
   --color-hairline: rgb(255 255 255 / 0.1);
   --color-hairline-strong: rgb(255 255 255 / 0.2);
 
-  /* Fluid type ----------------------------------------------------------- */
-  --text-eyebrow: clamp(0.625rem, 0.5833rem + 0.1667vw, 0.75rem);
-  --text-small: clamp(0.6875rem, 0.6458rem + 0.1667vw, 0.8125rem);
-  --text-body: clamp(0.8125rem, 0.7292rem + 0.3333vw, 1.0625rem);
-  --text-lead: clamp(0.9375rem, 0.8333rem + 0.4167vw, 1.25rem);
-  --text-metric: clamp(1.25rem, 1.0417rem + 0.8333vw, 1.875rem);
-  --text-title: clamp(1.3125rem, 1.0417rem + 1.0833vw, 2.125rem);
-  --text-heading: clamp(1.5rem, 1.0833rem + 1.6667vw, 2.75rem);
-  --text-display: clamp(1.625rem, 1rem + 2.5vw, 3.5rem);
+  /* Fluid type -----------------------------------------------------------
+     Each step interpolates from the size the design specifies at 400px to its
+     counterpart at 1600px, so there is no breakpoint for the scale to jump at.
+     The minimums are measured off the comp, not invented.
+
+     The unit is `cqi`, not `vw`. Viewport units are the wrong measure the
+     moment text sits in a constrained column: a heading in a 27rem column on a
+     2560px display would size itself for the display and overwhelm the column.
+     `body` is the default container, so unqualified text still tracks the
+     window; any component that declares its own container gets type scaled to
+     itself instead.                                                          */
+  --text-eyebrow: clamp(0.625rem, 0.5833rem + 0.1667cqi, 0.75rem);   /* 10 → 12 */
+  --text-small: clamp(0.6875rem, 0.6458rem + 0.1667cqi, 0.8125rem);  /* 11 → 13 */
+  --text-ui: clamp(0.875rem, 0.8333rem + 0.1667cqi, 1rem);           /* 14 → 16 */
+  --text-body: clamp(0.875rem, 0.7917rem + 0.3333cqi, 1.125rem);     /* 14 → 18 */
+  --text-lead: clamp(1.125rem, 1rem + 0.5cqi, 1.5rem);               /* 18 → 24 */
+  --text-kicker: clamp(1.25rem, 1.125rem + 0.5cqi, 1.625rem);        /* 20 → 26 */
+  --text-metric: clamp(1.25rem, 1.0417rem + 0.8333cqi, 1.875rem);    /* 20 → 30 */
+  --text-title: clamp(1.3125rem, 1.0417rem + 1.0833cqi, 2.125rem);   /* 21 → 34 */
+  --text-display: clamp(1.75rem, 1.375rem + 1.5cqi, 2.875rem);       /* 28 → 46 */
+  --text-heading: clamp(1.5rem, 1.0833rem + 1.6667cqi, 2.75rem);     /* 24 → 44 */
 
   /* Fluid space ---------------------------------------------------------- */
-  --spacing-gutter: clamp(1rem, 0.5rem + 2.5vw, 4rem);
-  --spacing-section: clamp(2rem, 1rem + 5vw, 7rem);
+  --spacing-gutter: clamp(1rem, 0.5rem + 2.5cqi, 4rem);
+  /* The design's own 24px page inset at 400px wide. */
+  --spacing-edge: clamp(1.25rem, 0.75rem + 2cqi, 2.5rem);
+  /* Vertical rhythm between the bands of a screen. Scales with the viewport
+     height, not the width, because that is what actually runs out. */
+  --spacing-band: clamp(1.25rem, 3.5vh, 2.5rem);
+  /* The reading column on a single-column screen. */
+  --spacing-column: 27rem;
+  --spacing-section: clamp(2rem, 1rem + 5cqi, 7rem);
 
   /* Radii ---------------------------------------------------------------- */
   --radius-card: 0.75rem;
@@ -64,6 +94,49 @@
   --duration-quick: 180ms;
   --duration-base: 320ms;
   --duration-slow: 620ms;
+
+  /* Entrances ------------------------------------------------------------
+     These are CSS animations rather than JavaScript ones on purpose. A
+     requestAnimationFrame loop is throttled in an unfocused tab, which leaves a
+     JS entrance frozen part-way and content sitting at opacity 0 until the tab
+     is focused. CSS animations run on the document timeline and resume at the
+     correct position, and `both` fill means the end state holds. Under
+     prefers-reduced-motion the global override collapses the duration, so the
+     content simply appears.                                                  */
+  --animate-rise: rise var(--duration-slow) var(--ease-out-soft) both;
+  --animate-emerge: emerge 900ms var(--ease-out-soft) both;
+  --animate-fade: fade var(--duration-base) var(--ease-out-soft) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      translate: 0 14px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes emerge {
+    from {
+      opacity: 0;
+      scale: 0.94;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -71,6 +144,12 @@
 --------------------------------------------------------------------------- */
 
 @layer base {
+  /* The default container for the fluid type scale. */
+  body {
+    container-type: inline-size;
+    container-name: page;
+  }
+
   html {
     scroll-behavior: smooth;
     /* Keeps sticky headers from covering an anchored target. */

@@ -186,6 +186,11 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
  * The two background layers are pseudo-elements rather than markup: they carry
  * no meaning, so they should not exist in the accessibility tree or the DOM.
  * Both are sized in percentages of the page so they scale with it.
+ *
+ * The wash is capped, but generously: at the comp's 142% it would be nearly
+ * three metres across on a wide display, while the old 44rem ceiling left it a
+ * small pool in the middle of a flat black screen at 1920. 62rem keeps it
+ * present without letting it take over.
  */
 .splash::before {
   content: '';
@@ -193,7 +198,7 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
   z-index: 0;
   left: 50%;
   top: calc(50% + 1.3%);
-  inline-size: min(142%, 44rem);
+  inline-size: min(142%, 62rem);
   aspect-ratio: 567 / 761;
   translate: -50% -50%;
   background: radial-gradient(
@@ -204,7 +209,9 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
     rgb(0 42 52 / 0.075) 75%,
     transparent 100%
   );
-  filter: blur(20px);
+  /* The blur has to grow with the wash, or it reads as a hard-edged disc
+     once the element is a thousand pixels across. */
+  filter: blur(clamp(20px, 3cqi, 40px));
   pointer-events: none;
 }
 

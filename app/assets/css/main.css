@@ -1,0 +1,171 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+   ---------------------------------------------------------------------------
+   Every value the interface is allowed to use lives here, once.
+
+   The type and space scales are fluid by construction: each token interpolates
+   between its mobile value at a 400px viewport and its desktop value at 1600px,
+   so the layout has no breakpoint to snap at. The `clamp()` bounds are the
+   design's own measurements, not arbitrary steps.
+--------------------------------------------------------------------------- */
+
+@theme {
+  /* Typeface ------------------------------------------------------------- */
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Surfaces ------------------------------------------------------------- */
+  --color-void: #000000;
+  --color-ink: #09090b;
+  --color-deep: #031317;
+  --color-bar: #0b0b0b;
+
+  --color-surface: rgb(255 255 255 / 0.04);
+  --color-surface-raised: rgb(255 255 255 / 0.07);
+  --color-surface-scrim: rgb(0 0 0 / 0.55);
+
+  /* Content -------------------------------------------------------------- */
+  --color-text: #ffffff;
+  --color-text-muted: rgb(255 255 255 / 0.64);
+  --color-text-faint: rgb(255 255 255 / 0.4);
+
+  /* Accents -------------------------------------------------------------- */
+  --color-gold: #c6a059;
+  --color-gold-soft: rgb(198 160 89 / 0.16);
+  --color-alert: #ff4d4f;
+
+  /* Lines ---------------------------------------------------------------- */
+  --color-hairline: rgb(255 255 255 / 0.1);
+  --color-hairline-strong: rgb(255 255 255 / 0.2);
+
+  /* Fluid type ----------------------------------------------------------- */
+  --text-eyebrow: clamp(0.625rem, 0.5833rem + 0.1667vw, 0.75rem);
+  --text-small: clamp(0.6875rem, 0.6458rem + 0.1667vw, 0.8125rem);
+  --text-body: clamp(0.8125rem, 0.7292rem + 0.3333vw, 1.0625rem);
+  --text-lead: clamp(0.9375rem, 0.8333rem + 0.4167vw, 1.25rem);
+  --text-metric: clamp(1.25rem, 1.0417rem + 0.8333vw, 1.875rem);
+  --text-title: clamp(1.3125rem, 1.0417rem + 1.0833vw, 2.125rem);
+  --text-heading: clamp(1.5rem, 1.0833rem + 1.6667vw, 2.75rem);
+  --text-display: clamp(1.625rem, 1rem + 2.5vw, 3.5rem);
+
+  /* Fluid space ---------------------------------------------------------- */
+  --spacing-gutter: clamp(1rem, 0.5rem + 2.5vw, 4rem);
+  --spacing-section: clamp(2rem, 1rem + 5vw, 7rem);
+
+  /* Radii ---------------------------------------------------------------- */
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+  --radius-pill: 999px;
+
+  /* Motion --------------------------------------------------------------- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-quick: 180ms;
+  --duration-base: 320ms;
+  --duration-slow: 620ms;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Keeps sticky headers from covering an anchored target. */
+    scroll-padding-block-start: var(--spacing-section);
+    background-color: var(--color-ink);
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* The page owns the scroll; nothing bounces past it. */
+    overscroll-behavior-y: none;
+    min-block-size: 100dvh;
+  }
+
+  /* A visible, consistent focus ring is the whole keyboard story. */
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  img,
+  picture,
+  video,
+  canvas {
+    display: block;
+    max-inline-size: 100%;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Motion is an enhancement, never a requirement. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Utilities used often enough to earn a name
+--------------------------------------------------------------------------- */
+
+@utility eyebrow {
+  font-size: var(--text-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+}
+
+@utility caps-meta {
+  font-size: var(--text-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* Screen-reader-only text, without a wrapper element. */
+@utility visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

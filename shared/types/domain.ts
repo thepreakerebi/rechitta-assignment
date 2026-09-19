@@ -41,6 +41,15 @@ export interface Chapter {
   readonly metricLabel: string
   readonly metricValue: string
   readonly hero: Media
+  /**
+   * What opening this chapter asks Rechitta.
+   *
+   * The feed is the skim and the answer deck is the detail, and what joins them
+   * in this product is a question. Carrying it on the chapter means the card
+   * knows what it is asking and the mock knows which answer that is, without
+   * either of them keeping a private list of the other's strings.
+   */
+  readonly question: string
 }
 
 export interface Appreciation {

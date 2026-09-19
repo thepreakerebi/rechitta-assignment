@@ -42,7 +42,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-09-19',
   future: { compatibilityVersion: 4 },
 
-  modules: ['@nuxt/eslint', '@nuxt/fonts', '@nuxt/image', '@vueuse/nuxt', 'motion-v/nuxt'],
+  modules: ['@nuxt/eslint', '@nuxt/fonts', '@vueuse/nuxt', 'motion-v/nuxt'],
 
   css: ['~/assets/css/main.css'],
   vite: { plugins: [tailwindcss()] },
@@ -83,7 +83,20 @@ export default defineNuxtConfig({
         { name: 'color-scheme', content: 'dark' },
         { name: 'theme-color', content: '#09090B' },
       ],
-      link: [{ rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+      /*
+       * Rechitta's own mark, taken from rechitta.com rather than approximated.
+       * The SVG is theirs as they ship it; the touch icon is built from the
+       * lockup this project already carries, because the one the site serves
+       * for iOS is a 50px image stretched to a home screen.
+       *
+       * The touch icon is deliberately square and opaque — iOS applies its own
+       * rounding and ignores transparency, so a rounded transparent one arrives
+       * with black corners.
+       */
+      link: [
+        { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
+      ],
     },
   },
 

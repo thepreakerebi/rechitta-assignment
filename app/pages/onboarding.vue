@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import OnboardingPager from '~/components/ui/OnboardingPager.vue'
 import TheOrb from '~/components/orb/TheOrb.vue'
+import TheToast from '~/components/ui/TheToast.vue'
 import { useMicAudio } from '~/composables/useMicAudio'
 import type { Session } from '#shared/types/domain'
 
@@ -19,7 +20,7 @@ import type { Session } from '#shared/types/domain'
  * The device status bar is not reproduced, for the same reason as on the splash.
  */
 
-const NEXT_PATH = '/project/berkeley-square-north'
+const NEXT_PATH = '/ask'
 
 useSeoMeta({
   title: 'Speak to Discover',
@@ -33,6 +34,14 @@ const mic = useMicAudio()
 const asking = ref(false)
 /** Set once the browser has said yes, so the screen can confirm it. */
 const allowed = ref(false)
+/**
+ * Whether the question has actually been put to the browser yet.
+ *
+ * A toast answers an action. Without this, someone who granted the microphone
+ * on an earlier visit arrives to be told "Microphone connected" before they
+ * have touched anything — an announcement about nothing they just did.
+ */
+const announced = ref(false)
 
 /**
  * Where each prompt sits, as a share of the stage, read off the comp. The tail
@@ -87,42 +96,59 @@ const advanceLabel = computed(() => {
 
 const RECOVERY: Partial<Record<string, string>> = {
   blocked:
-    'Microphone access is blocked. You can allow it from the icon in your browser’s address bar — or carry on and read the briefing instead.',
+    'Microphone access is blocked. You can allow it from the icon in your browser’s address bar — or carry on and ask your question in writing instead.',
   unsupported:
-    'This browser cannot reach a microphone. Carry on and read the briefing instead.',
+    'This browser cannot reach a microphone. Carry on and ask your question in writing instead.',
   unavailable:
-    'No microphone was found. Connect one and reload to use voice, or carry on and read the briefing.',
+    'No microphone was found. Connect one and reload to use voice, or carry on and ask in writing.',
 }
 
 const recovery = computed(() => RECOVERY[mic.status.value])
 
 /**
- * The outcome, said once, in a live region.
+ * The outcome, said once, over the screen rather than in it.
  *
  * Granting does not navigate on its own. Moving someone the instant a browser
  * dialog closes is disorienting — they have just looked away from the page to
  * answer a system prompt, and arriving somewhere new on the way back gives them
  * no chance to register that it worked. So the screen confirms, the control
  * becomes a plain way forward, and the step is theirs to take.
+ *
+ * It is a toast because it arrives in response to a press. Sitting in the
+ * column, it pushed the privacy note and the footer down the moment it
+ * appeared, which made a successful press look like a layout error.
  */
 const outcome = computed(() => {
-  if (allowed.value) return 'Microphone connected. Rechitta will listen only while you hold the button on the next screen.'
-  return recovery.value
+  if (!announced.value) return null
+  if (allowed.value) return 'Microphone connected. Rechitta listens only while you ask her to, on the next screen, and never records.'
+  return recovery.value ?? null
 })
 
+/** A refusal carries instructions for undoing it, so it waits to be dismissed. */
+const outcomeTone = computed(() => (allowed.value ? 'positive' : 'critical'))
+
 /**
- * Voice is an enhancement, never a gate: whatever the browser answers, the
- * briefing is still there. A refusal stops once to explain itself, and the
- * second press goes on regardless.
+ * Voice is an enhancement, never a gate: whatever the browser answers, the next
+ * screen is still there and the question can still be asked in writing. A
+ * refusal stops once to explain itself, and the second press goes on regardless.
  */
 const advance = async () => {
-  if (allowed.value || settled.value) return navigateTo(NEXT_PATH)
+  if (allowed.value) return navigateTo(NEXT_PATH)
+
+  if (settled.value) {
+    // Already answered, and not from here. Say why once, then stop standing in
+    // the way — the briefing never needed the microphone.
+    if (announced.value) return navigateTo(NEXT_PATH)
+    announced.value = true
+    return
+  }
 
   asking.value = true
   // getUserMedia is the first await, so the click's user gesture is still live
   // when it runs — which is what Safari requires before it will show a prompt.
   await mic.start()
   asking.value = false
+  announced.value = true
 
   // Granted: release the device rather than hold it open. The permission stays
   // with the origin, so the next screen re-opens it without asking again.
@@ -132,11 +158,14 @@ const advance = async () => {
   }
 }
 
-onMounted(async () => {
-  await mic.peekPermission()
-  // A returning visitor has already answered; do not ask a second time.
-  if (mic.hasPriorConsent.value) allowed.value = true
-})
+// A returning visitor has already answered, and so has someone who grants it
+// from the address bar while this screen is open. Either way, stop offering to
+// ask for something already given.
+watch(mic.hasPriorConsent, (consented) => {
+  if (consented) allowed.value = true
+}, { immediate: true })
+
+onMounted(() => { void mic.peekPermission() })
 </script>
 
 <template>
@@ -144,7 +173,13 @@ onMounted(async () => {
     id="main"
     class="onboarding relative isolate h-dvh min-h-[50rem] overflow-hidden bg-ink px-edge pb-[clamp(1.5rem,4vh,2.5rem)] pt-[clamp(2rem,7vh,4.5rem)]"
   >
-    <section class="relative z-10 mx-auto flex h-full w-full max-w-column flex-col gap-band">
+    <!-- Whatever the browser answers, it is said out loud once. -->
+    <TheToast
+      :message="outcome"
+      :tone="outcomeTone"
+    />
+
+    <section class="frame relative z-10 mx-auto flex h-full w-full max-w-column flex-col gap-band">
       <header class="animate-rise text-center">
         <h1 class="text-display leading-tight">Speak to Discover</h1>
         <p
@@ -225,22 +260,13 @@ onMounted(async () => {
         </p>
       </aside>
 
-      <!-- Whatever the browser answers, it is said out loud once. -->
-      <output
-        v-if="outcome"
-        class="animate-rise rounded-card border px-4 py-3 text-small leading-[1.5]"
-        :class="allowed
-          ? 'border-gold/30 bg-gold-soft text-text'
-          : 'border-alert/25 bg-alert/8 text-text-muted'"
-      >{{ outcome }}</output>
-
       <footer class="flex animate-fade items-center justify-between pt-[clamp(0.25rem,2vh,1rem)] [animation-delay:800ms]">
         <NuxtLink
           class="rounded px-3 py-3 font-ui text-ui font-medium text-text-faint transition-colors duration-(--duration-quick) hover:text-text"
           :to="NEXT_PATH"
         >
           Skip
-          <em class="visually-hidden">, and read the briefing without voice</em>
+          <em class="visually-hidden">, and ask your question without voice</em>
         </NuxtLink>
 
         <OnboardingPager :current="2" />
@@ -318,6 +344,36 @@ onMounted(async () => {
   container-type: size;
 }
 
+/*
+ * The cyan glow — node "Glow" in the comp, and the asset already extracted from
+ * it. It was hand-rolled as a gradient behind the orb, which put it in the
+ * wrong half of the screen: the comp's own radial is centred at x 404, y 716 of
+ * a 400×880 frame, so it pools around the privacy note just above the footer
+ * and only its top edge reaches the orb.
+ *
+ * The SVG carries its own blur and its own off-centre gradient, so it is used
+ * as drawn rather than approximated. Its box is the 839×605 vector plus the
+ * 40px the blur bleeds on every side, placed at the vector's own offset less
+ * that bleed: 137−40 and 414−40.
+ *
+ * Anchored to the column, because the column is what the comp's frame is — 400px
+ * there, 27rem here — so the glow keeps its relationship to the privacy note at
+ * any width instead of drifting off across a desktop page.
+ */
+.frame::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-inline-start: 24.25%;
+  inset-block-start: 42.5%;
+  inline-size: 229.75%;
+  aspect-ratio: 919 / 685;
+  background-image: url('/brand/onboarding-glow.svg');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
 .prompt-field {
   position: absolute;
   /* Both insets plus auto margins centres it in the space under the heading,
@@ -340,25 +396,6 @@ onMounted(async () => {
 .orb-well {
   position: absolute;
   inset: 0;
-}
-
-/* The second wash, rising from behind the orb. */
-.orb-stage::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  inset-inline-start: -25%;
-  inset-block-start: 10%;
-  inline-size: min(210%, 58rem);
-  aspect-ratio: 839 / 605;
-  background: radial-gradient(
-    closest-side,
-    rgb(0 169 207 / 0.16),
-    rgb(0 120 150 / 0.08) 45%,
-    transparent 75%
-  );
-  filter: blur(clamp(24px, 4cqi, 48px));
-  pointer-events: none;
 }
 
 /*

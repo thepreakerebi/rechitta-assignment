@@ -85,7 +85,13 @@ test.describe('Booking · opening', () => {
   })
 
   test('brings the opened form into view rather than leaving it below the fold', async ({ page }) => {
-    for (const size of [PHONE, { width: 1440, height: 900 }]) {
+    /*
+     * A short window as well as a tall one. In a tall one the card fits and
+     * almost anything passes; the bug only showed where it could not — the
+     * scroll was issued before the document had grown, the browser clamped it
+     * to the old page bottom, and nothing moved at all.
+     */
+    for (const size of [PHONE, { width: 1024, height: 570 }, { width: 1440, height: 900 }]) {
       await page.setViewportSize(size)
       await page.goto(FEED)
       await page.waitForLoadState('networkidle')
@@ -94,14 +100,13 @@ test.describe('Booking · opening', () => {
       await button.scrollIntoViewIfNeeded()
       await button.click()
 
-      // The card is the last thing on a four-thousand-pixel page, so opening it
-      // otherwise reveals a form mostly below the fold.
+      // The form, not the card: on a short window the card is taller than the
+      // viewport and cannot be shown whole, but the part being asked for can.
       await expect.poll(async () => page.evaluate(() => {
-        const card = document.querySelector('main section[aria-labelledby="viewing-heading"]')!
-        const box = card.getBoundingClientRect()
+        const box = document.querySelector('main form')!.getBoundingClientRect()
         const visible = Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0)
-        return Math.round((visible / Math.min(box.height, window.innerHeight)) * 100)
-      }), { timeout: 10_000 }).toBeGreaterThan(95)
+        return Math.round((visible / box.height) * 100)
+      }), { timeout: 10_000 }).toBe(100)
     }
   })
 

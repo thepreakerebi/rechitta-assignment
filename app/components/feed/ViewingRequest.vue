@@ -69,36 +69,89 @@ const errors = computed<BookingErrors>(() => (submitted.value ? validateBooking(
 
 const cta = ref<HTMLButtonElement | null>(null)
 const card = ref<HTMLElement | null>(null)
+const formEl = ref<HTMLFormElement | null>(null)
+const disclosure = ref<HTMLFieldSetElement | null>(null)
 const fields = ref<HTMLElement | null>(null)
 
 /**
  * Brings the opened form into view.
  *
  * The card is the last thing on a four-thousand-pixel page, so pressing the
- * button usually reveals a form mostly below the fold and leaves someone to
+ * button otherwise reveals a form mostly below the fold and leaves someone to
  * scroll for it themselves.
  *
- * The alignment is decided before the panel has finished opening, from the
- * height the fields *will* take: they are clipped rather than resized while the
- * row is closed, so `scrollHeight` already knows. Waiting for the transition
- * instead would mean six hundred milliseconds of nothing happening.
+ * It is the form that is aimed at, not the card. On a short window the card —
+ * icon, heading, blurb and all — is taller than the viewport and cannot be
+ * shown whole; the part worth showing is the one being asked to fill in.
  *
- * `behavior` is deliberately left off. Its default defers to the page's own
- * `scroll-behavior`, which is smooth — and which the reduced-motion block
- * already turns off, so respecting that preference costs nothing here.
+ * `window.scrollTo` rather than `scrollIntoView`, because the page sets
+ * `scroll-padding-block-start` for anchored links and that would push the form
+ * down by seven rem for no reason here. `behavior` is left off either way: its
+ * default defers to the page's own `scroll-behavior`, which is smooth, and
+ * which the reduced-motion block already turns off.
  */
+const GUTTER = 16
+
 const reveal = async () => {
   await nextTick()
-  if (!card.value) return
+  const el = formEl.value
+  if (!el) return
 
-  const height = card.value.getBoundingClientRect().height + (fields.value?.scrollHeight ?? 0)
-  card.value.scrollIntoView({ block: height <= window.innerHeight ? 'center' : 'start' })
+  /*
+   * How much taller the form is about to get. While the row is closed its
+   * fields are clipped rather than resized, so scrollHeight already knows their
+   * full height while the rendered box is still nothing. Once open the two
+   * agree and this is zero, which is what lets the same call be used before and
+   * after the panel has finished opening.
+   */
+  const rendered = fields.value?.getBoundingClientRect().height ?? 0
+  const grow = Math.max(0, (fields.value?.scrollHeight ?? 0) - rendered)
+
+  const box = el.getBoundingClientRect()
+  const height = box.height + grow
+  const top = window.scrollY + box.top
+
+  window.scrollTo({
+    top: Math.max(0, height + GUTTER * 2 <= window.innerHeight
+      ? top - (window.innerHeight - height) / 2
+      : top - GUTTER),
+  })
 }
+
+/** Resolves when the disclosure has stopped growing, or soon enough anyway. */
+const settled = () => new Promise<void>((resolve) => {
+  const el = disclosure.value
+  if (!el) return resolve()
+
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    el.removeEventListener('transitionend', finish)
+    resolve()
+  }
+
+  el.addEventListener('transitionend', finish)
+  // A transition that never fires — reduced motion collapses it to nothing —
+  // must not leave this hanging.
+  setTimeout(finish, 800)
+})
 
 const expand = async () => {
   open.value = true
+
+  /*
+   * Twice, and both are needed. The first moves the page while the panel is
+   * still opening, so something happens immediately. But at that moment the
+   * document has not grown yet, and if the card was already at the bottom of
+   * the page there is nowhere to scroll to — the browser clamps it and nothing
+   * moves at all. The second runs once the panel has stopped growing and the
+   * times have arrived, when the room it needs finally exists.
+   */
   reveal()
   await loadSlots()
+  await settled()
+  await reveal()
 }
 
 /**
@@ -245,6 +298,7 @@ const toast = computed(() =>
       </p>
 
       <form
+        ref="formEl"
         class="booking"
         novalidate
         @submit.prevent="onSubmit"
@@ -254,6 +308,7 @@ const toast = computed(() =>
              height of its own content, so the button below is pushed down by
              exactly as much room as the fields need. -->
         <fieldset
+          ref="disclosure"
           class="disclosure"
           :class="{ 'is-open': open }"
           :aria-hidden="!open"

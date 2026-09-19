@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import AgentHeader from '~/components/deck/AgentHeader.vue'
 import AnswerPanel from '~/components/deck/AnswerPanel.vue'
-import type { Answer, Project, Session } from '#shared/types/domain'
+import TheToast from '~/components/ui/TheToast.vue'
+import { useAgentVoice } from '~/composables/useAgentVoice'
+import type { Answer, Project, Session, Utterance } from '#shared/types/domain'
 
 /**
  * 04 · The answer deck.
@@ -46,31 +48,97 @@ const answer = ref<Answer | null>(null)
 const pending = ref(true)
 const failed = ref(false)
 
-const ask = async (question: string | null) => {
+/** Her side of it, out loud. The orb in the header draws whichever voice is live. */
+const voice = useAgentVoice()
+
+/**
+ * Said when she could not make out the question.
+ *
+ * A toast rather than a state that takes the screen: the answer already there
+ * is still true, and replacing it would punish a question she failed to hear by
+ * taking away the one she did.
+ */
+const unheard = ref<string | null>(null)
+
+/**
+ * The two ways a question reaches her. Spoken and typed are different requests
+ * all the way down — the first has to be recognised before it can be answered —
+ * so they stay apart here rather than being flattened into a string.
+ */
+type Request =
+  | { readonly kind: 'text', readonly question: string }
+  | { readonly kind: 'utterance', readonly utterance: Utterance }
+
+/** 422 is the agent saying it could not make out the words, not a dead server. */
+const wasNotCaught = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'statusCode' in error
+  && (error as { statusCode?: number }).statusCode === 422
+
+const ask = async (request: Request) => {
   pending.value = true
   failed.value = false
+  unheard.value = null
+  voice.silence()
 
   try {
-    answer.value = await $fetch<Answer>('/api/agent/ask', {
+    const heard = await $fetch<Answer>('/api/agent/ask', {
       method: 'POST',
       query: scenario.value,
       body: {
         projectSlug: session.value?.projectSlug ?? slug.value,
-        ask: { kind: 'text', question: question ?? DEFAULT_QUESTION },
+        ask: request,
       },
     })
+
+    answer.value = heard
+
+    /*
+     * The address describes what is on screen, including for a question nobody
+     * typed: the recognised words go into the URL so a reload, a share or the
+     * back button all land on this answer rather than on the default one.
+     */
+    if (request.kind === 'utterance' && heard.question !== asked.value) {
+      await router.replace({ query: { ...route.query, q: heard.question } })
+    }
+
+    if (heard.voice) await voice.speak(heard.voice)
   }
-  catch {
+  catch (error) {
     // The server's own message is never surfaced; what is needed is the way on.
-    answer.value = null
-    failed.value = true
+    if (request.kind === 'utterance' && wasNotCaught(error)) {
+      unheard.value = 'Rechitta did not catch that. Ask again, a little closer to the microphone.'
+    }
+    else {
+      answer.value = null
+      failed.value = true
+    }
   }
   finally {
     pending.value = false
   }
 }
 
+/**
+ * Something was said. Null means the microphone was open and nothing came
+ * through it at all, which never reaches the agent — there is nothing to send.
+ */
+const askSpoken = (utterance: Utterance | null) => {
+  if (!utterance) {
+    unheard.value = 'Rechitta heard nothing. Check the microphone is the one you are speaking into.'
+    return
+  }
+
+  return ask({ kind: 'utterance', utterance })
+}
+
 const DEFAULT_QUESTION = 'What makes this the perfect first investment?'
+
+/** Play her answer again, or stop her saying it. */
+const replay = () => {
+  const src = answer.value?.voice
+  if (voice.isSpeaking.value) return voice.silence()
+  if (src) void voice.speak(src)
+}
 
 const panels = computed(() => answer.value?.panels ?? [])
 
@@ -158,16 +226,18 @@ const onKeydown = (event: KeyboardEvent) => {
   goTo(target)
 }
 
-/**
- * Asking again from the header replaces the question in the URL, so the answer
- * on screen is always the one the address describes — and a reload, a share or
- * the back button all land on the same thing.
- */
-const askAgain = () => router.replace({ query: { ...route.query, q: DEFAULT_QUESTION } })
-
 if (import.meta.client) useEventListener(document, 'keydown', onKeydown)
 
-watch(asked, question => ask(question), { immediate: true })
+/*
+ * The URL is what the screen follows. A spoken question writes the words it was
+ * recognised as back into it, so this would ask the same question a second time
+ * as text — the guard is what keeps one question to one answer.
+ */
+watch(asked, (question) => {
+  const wanted = question ?? DEFAULT_QUESTION
+  if (answer.value?.question === wanted) return
+  void ask({ kind: 'text', question: wanted })
+}, { immediate: true })
 watch(panels, () => {
   current.value = 0
   intent = 0
@@ -184,7 +254,38 @@ watch(panels, () => {
       :question="asked ?? DEFAULT_QUESTION"
       :back-to="briefing"
       :primed="primed"
-      @ask="askAgain"
+      :voice="voice.readDrive"
+      :speaking="voice.isSpeaking.value"
+      @ask="askSpoken"
+    />
+
+    <!-- She is answering out loud; these are the words, for anyone who cannot
+         hear them, has the sound off, or simply reads faster than she speaks. -->
+    <Transition name="said">
+      <section
+        v-if="answer && answer.transcript"
+        class="said"
+        aria-live="polite"
+      >
+        <q class="words">{{ answer.transcript }}</q>
+
+        <!-- WCAG 2.1.2 asks for a way to stop sound that has started. It is
+             also the way to hear it again, which is the commoner need. -->
+        <button
+          v-if="answer.voice"
+          type="button"
+          class="sound"
+          :aria-pressed="voice.isSpeaking.value"
+          @click="replay"
+        >{{ voice.isSpeaking.value ? 'Stop' : 'Play again' }}</button>
+      </section>
+    </Transition>
+
+    <!-- A question she could not make out leaves the answer already on screen
+         alone, and says so here instead. -->
+    <TheToast
+      :message="unheard"
+      tone="critical"
     />
 
     <!-- Thinking: the panel's own shape, so the answer arrives into its outline
@@ -211,7 +312,7 @@ watch(panels, () => {
         <button
           type="button"
           class="again"
-          @click="ask(asked)"
+          @click="ask({ kind: 'text', question: asked ?? DEFAULT_QUESTION })"
         >Try again</button>
         <NuxtLink
           class="away"
@@ -287,6 +388,73 @@ watch(panels, () => {
 </template>
 
 <style scoped>
+/*
+ * Her words, under the header and over the panels. Absolute rather than in
+ * flow: the deck is one viewport tall by design, and a caption that grew with
+ * the sentence would push the pager off the bottom of a phone.
+ */
+.said {
+  position: absolute;
+  z-index: 4;
+  inset-inline: clamp(0.75rem, 3cqi, 2.5rem);
+  inset-block-start: calc(4.125rem + clamp(0.75rem, 3cqi, 2rem));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  max-inline-size: var(--spacing-column);
+  margin-inline: auto;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  /* Her voice sits over photography, so the scrim is what guarantees the
+     contrast rather than the photograph's good manners. */
+  background-color: rgb(9 9 11 / 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.words {
+  flex: 1 1 14rem;
+  font-size: clamp(0.8125rem, 0.75rem + 0.25cqi, 1rem);
+  line-height: 1.55;
+  color: var(--color-text);
+  text-wrap: pretty;
+}
+
+.sound {
+  flex: 0 0 auto;
+  min-block-size: 2.75rem;
+  padding-inline: 0.875rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: var(--text-small);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition:
+    color var(--duration-quick) var(--ease-out-soft),
+    background-color var(--duration-quick) var(--ease-out-soft);
+}
+
+.sound:hover {
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.said-enter-active,
+.said-leave-active {
+  transition:
+    opacity var(--duration-base) var(--ease-out-soft),
+    translate var(--duration-base) var(--ease-out-soft);
+}
+
+.said-enter-from,
+.said-leave-to {
+  opacity: 0;
+  translate: 0 -0.5rem;
+}
+
 .deck {
   position: relative;
   isolation: isolate;

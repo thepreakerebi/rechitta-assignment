@@ -2,6 +2,8 @@
 import TheOrb from '~/components/orb/TheOrb.vue'
 import { useMicAudio } from '~/composables/useMicAudio'
 import type { MicStatus } from '~/composables/useMicAudio'
+import type { OrbDriveSource } from '~/components/orb/TheOrb.vue'
+import type { Utterance } from '#shared/types/domain'
 
 /**
  * The persistent agent header: back, who is speaking, what she was asked, and
@@ -24,9 +26,16 @@ const props = defineProps<{
   backTo: string
   /** Focus the microphone on arrival, without opening it. */
   primed?: boolean
+  /** Rechitta's voice, while she has one. The orb draws whichever is live. */
+  voice?: OrbDriveSource
+  speaking?: boolean
 }>()
 
-const emit = defineEmits<{ ask: [] }>()
+/**
+ * An utterance, or null when the microphone was open and nothing came through
+ * it. The page decides what that means; the header only reports it.
+ */
+const emit = defineEmits<{ ask: [utterance: Utterance | null] }>()
 
 const mic = useMicAudio()
 const micButton = ref<HTMLButtonElement | null>(null)
@@ -71,13 +80,29 @@ const settled = computed(() =>
  */
 const toggle = async () => {
   if (listening.value) {
+    // Measured before the graph is torn down, and taken exactly once — the
+    // same utterance can never be sent twice.
+    const utterance = mic.takeUtterance()
     mic.stop()
-    return emit('ask')
+    return emit('ask', utterance)
   }
 
   await mic.start()
   attempted.value = true
 }
+
+/**
+ * Whose voice the orb is drawing.
+ *
+ * Yours while the microphone is open, hers while she is answering, and the idle
+ * drive between the two. Both sources have the same shape, so the orb never
+ * learns which one it has.
+ */
+const orbSource = computed<OrbDriveSource | undefined>(() => {
+  if (listening.value) return mic.readDrive
+  if (props.speaking) return props.voice
+  return undefined
+})
 
 onMounted(async () => {
   await mic.peekPermission()
@@ -130,7 +155,7 @@ onMounted(async () => {
       >
         <figure class="mic-orb">
           <TheOrb
-            :source="mic.readDrive"
+            :source="orbSource"
             :opacity="0.9"
           />
         </figure>

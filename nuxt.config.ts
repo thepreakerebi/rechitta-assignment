@@ -42,7 +42,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-09-19',
   future: { compatibilityVersion: 4 },
 
-  modules: ['@nuxt/eslint', '@nuxt/fonts', '@nuxt/image', '@vueuse/nuxt', 'motion-v/nuxt'],
+  modules: ['@nuxt/eslint', '@nuxt/fonts', '@vueuse/nuxt', 'motion-v/nuxt'],
 
   css: ['~/assets/css/main.css'],
   vite: { plugins: [tailwindcss()] },

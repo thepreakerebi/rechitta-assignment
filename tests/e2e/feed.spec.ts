@@ -379,6 +379,29 @@ test.describe('03 · Feed · the accordion', () => {
   })
 })
 
+test.describe('03 · Feed · headings', () => {
+  test('every screen has exactly one h1, and skips no level', async ({ page }) => {
+    for (const path of ['/', '/onboarding', '/ask', FEED, `${FEED}/answer`, '/privacy']) {
+      await page.setViewportSize(PHONE)
+      await page.goto(path)
+      await page.waitForLoadState('networkidle')
+
+      const levels = await page.evaluate(() =>
+        [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')]
+          .map(heading => Number(heading.tagName[1])))
+
+      expect(levels.filter(level => level === 1).length, `h1 count on ${path}`).toBe(1)
+
+      // No jump of more than one level on the way down the document.
+      let deepest = 0
+      for (const level of levels) {
+        if (deepest !== 0) expect(level, `level jump on ${path}`).toBeLessThanOrEqual(deepest + 1)
+        deepest = Math.max(deepest, level)
+      }
+    }
+  })
+})
+
 test.describe('03 · Feed · layout', () => {
   test('reflows at 320px with no horizontal scroll', async ({ page }) => {
     await open(page, FEED, NARROW)

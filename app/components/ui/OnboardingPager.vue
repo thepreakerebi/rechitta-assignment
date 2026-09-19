@@ -10,6 +10,9 @@
  * Each dot is an 8px mark inside a 24px target, which is the smallest WCAG 2.2
  * allows for a pointer.
  */
+import { readSwipe } from '~/utils/swipe'
+import type { SwipePoint } from '~/utils/swipe'
+
 const props = defineProps<{ current: 1 | 2 | 3 }>()
 
 const STEPS = [
@@ -53,6 +56,57 @@ const go = (move: number | 'first' | 'last') => {
   return navigateTo(STEPS[target - 1]!.to)
 }
 
+/* ---------------------------------------------------------------------------
+   Swiping
+--------------------------------------------------------------------------- */
+
+/**
+ * The same two steps, by finger.
+ *
+ * Only a touch pointer: a mouse drag across a page is a selection, not a page
+ * turn, and a pen is usually drawing. Nothing is prevented — the gesture is
+ * read after the fact from where the finger went down and came up — so
+ * scrolling, pinching and text selection all carry on as they were.
+ */
+let from: SwipePoint | null = null
+
+/**
+ * Whether the gesture began on something that scrolls sideways of its own
+ * accord. The answer deck is a scroll-snap track and the booking times are a
+ * wrapping row; a swipe that starts inside either belongs to it, and taking it
+ * would move the page out from under the thing being swiped.
+ */
+const ownsHorizontalScroll = (node: Node | null): boolean => {
+  let element = node instanceof Element ? node : node?.parentElement ?? null
+
+  while (element) {
+    if (element.scrollWidth > element.clientWidth + 1) {
+      const overflow = getComputedStyle(element).overflowX
+      if (overflow === 'auto' || overflow === 'scroll') return true
+    }
+    element = element.parentElement
+  }
+
+  return false
+}
+
+const onPointerDown = (event: PointerEvent) => {
+  from = event.pointerType === 'touch' && !ownsHorizontalScroll(event.target as Node)
+    ? { x: event.clientX, y: event.clientY, at: event.timeStamp }
+    : null
+}
+
+const onPointerUp = (event: PointerEvent) => {
+  const start = from
+  from = null
+  if (!start || event.pointerType !== 'touch') return
+
+  const swipe = readSwipe(start, { x: event.clientX, y: event.clientY, at: event.timeStamp }, window.innerWidth)
+  if (!swipe) return
+
+  return go(swipe === 'forward' ? 1 : -1)
+}
+
 /**
  * Listened for on the document rather than the pager, so the arrows work from
  * anywhere on the screen rather than only once someone has tabbed onto the
@@ -85,7 +139,14 @@ const onKeydown = (event: KeyboardEvent) => {
  * hook it outlives the component, and after two steps the flow has three
  * handlers arguing over one keypress.
  */
-if (import.meta.client) useEventListener(document, 'keydown', onKeydown)
+if (import.meta.client) {
+  useEventListener(document, 'keydown', onKeydown)
+  // Passive, because nothing here prevents a default — a swipe is read after
+  // the fact, so scrolling and selection are never held up waiting on it.
+  useEventListener(document, 'pointerdown', onPointerDown, { passive: true })
+  useEventListener(document, 'pointerup', onPointerUp, { passive: true })
+  useEventListener(document, 'pointercancel', () => { from = null }, { passive: true })
+}
 </script>
 
 <template>
@@ -94,7 +155,7 @@ if (import.meta.client) useEventListener(document, 'keydown', onKeydown)
     aria-label="Onboarding progress"
   >
     <p class="visually-hidden">
-      Use the arrow keys to move between the three steps.
+      Use the arrow keys, or swipe sideways, to move between the three steps.
     </p>
 
     <ol class="flex items-center">

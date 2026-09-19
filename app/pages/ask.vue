@@ -96,7 +96,15 @@ const micLabel = computed(() => {
  * as long as someone is actually speaking.
  */
 const toggleMic = async () => {
-  if (mic.isListening.value) return mic.stop()
+  // Stopping is the end of a sentence, so it is also the moment to ask. The
+  // footer control stays a plain way forward — the speaking is done here, by
+  // the control that says "Speak".
+  if (mic.isListening.value) {
+    mic.stop()
+    return ask()
+  }
+
+  state.value = { kind: 'asking' }
   await mic.start()
 }
 
@@ -135,20 +143,12 @@ const ask = async () => {
   }
 }
 
-/** The primary control does whatever the screen's current state needs next. */
-const advance = () => {
-  if (state.value.kind === 'answered') return navigateTo(BRIEFING_PATH)
-  return ask()
-}
-
-const advanceLabel = computed(() => {
-  switch (state.value.kind) {
-    case 'thinking': return 'Asking…'
-    case 'answered': return 'See the briefing'
-    case 'failed': return 'Try again'
-    default: return 'Ask Rechitta'
-  }
-})
+/*
+ * A plain way forward, and nothing else. It used to send the question too,
+ * which made one control do two unrelated jobs and left it renaming itself
+ * four times; now that Speak owns the asking, this is only ever Next.
+ */
+const advance = () => navigateTo(BRIEFING_PATH)
 
 /**
  * What her answer carries, read off the panels themselves. Writing "the
@@ -315,6 +315,13 @@ onMounted(() => { void mic.peekPermission() })
           <p class="caps-meta">She could not answer</p>
           <q class="mt-2 block text-pretty text-small leading-[1.5] text-text-muted">{{ state.question }}</q>
           <p class="mt-2 text-body leading-[1.6] text-text">{{ state.reason }}</p>
+          <p class="mt-3">
+            <button
+              class="flex min-h-11 items-center rounded-pill border border-hairline-strong px-4 py-2 font-ui text-ui font-medium text-text transition-colors duration-(--duration-quick) hover:bg-surface-raised"
+              type="button"
+              @click="ask"
+            >Try again</button>
+          </p>
         </article>
       </section>
 
@@ -330,13 +337,11 @@ onMounted(() => { void mic.peekPermission() })
         <OnboardingPager :current="3" />
 
         <button
-          class="flex min-h-11 items-center justify-center gap-2 rounded-pill bg-control px-5 py-3 font-ui text-ui font-medium text-text-bright transition-[transform,background-color] duration-(--duration-quick) hover:bg-deep active:scale-[0.98] disabled:opacity-70"
+          class="flex min-h-11 items-center justify-center gap-2 rounded-pill bg-control px-5 py-3 font-ui text-ui font-medium text-text-bright transition-[transform,background-color] duration-(--duration-quick) hover:bg-deep active:scale-[0.98]"
           type="button"
-          :aria-busy="isThinking"
-          :disabled="isThinking"
           @click="advance"
         >
-          {{ advanceLabel }}
+          Next
           <svg
             class="size-5 shrink-0"
             viewBox="0 0 20 20"

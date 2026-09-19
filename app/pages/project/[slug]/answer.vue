@@ -84,6 +84,7 @@ useSeoMeta({
 --------------------------------------------------------------------------- */
 
 const track = ref<HTMLElement | null>(null)
+const pager = ref<HTMLElement | null>(null)
 const current = ref(0)
 
 /**
@@ -121,9 +122,25 @@ const goTo = (index: number) => {
   el.scrollTo({ left: index * el.clientWidth })
 }
 
-/** Both axes, because the dots read as a row and the panels as a sequence. */
+/**
+ * Both axes, because the dots read as a row and the panels as a sequence.
+ *
+ * Listened for on the document rather than on the track, so the arrows work
+ * from anywhere on the screen instead of only once someone has tabbed onto a
+ * scroll container — which would make the shortcut useful only to people who
+ * had already found it. It is the same rule the onboarding pager follows.
+ *
+ * It never takes the keys from something that needs them: a focused control
+ * owns its own arrows, so this applies only when nothing is focused or the
+ * focus is already inside the deck. Any modifier belongs to the browser —
+ * Alt+Left is Back, and stealing it would be worse than offering nothing.
+ */
 const onKeydown = (event: KeyboardEvent) => {
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
+  const from = event.target as Node | null
+  const idle = from === document.body || from === document.documentElement
+  if (!idle && !track.value?.contains(from) && !pager.value?.contains(from)) return
 
   const last = panels.value.length - 1
   const target = ['ArrowRight', 'ArrowDown'].includes(event.key)
@@ -147,6 +164,8 @@ const onKeydown = (event: KeyboardEvent) => {
  * the back button all land on the same thing.
  */
 const askAgain = () => router.replace({ query: { ...route.query, q: DEFAULT_QUESTION } })
+
+if (import.meta.client) useEventListener(document, 'keydown', onKeydown)
 
 watch(asked, question => ask(question), { immediate: true })
 watch(panels, () => {
@@ -225,7 +244,6 @@ watch(panels, () => {
         tabindex="0"
         :aria-label="`Rechitta's answer, ${panels.length} panels`"
         @scroll.passive="onScroll"
-        @keydown="onKeydown"
       >
         <li
           v-for="(panel, index) in panels"
@@ -244,6 +262,7 @@ watch(panels, () => {
       <!-- The pager, bottom left as the comp places it. Real controls: the dots
            are the only way back through the answer without a swipe. -->
       <nav
+        ref="pager"
         class="pager"
         aria-label="Answer panels"
       >
@@ -301,6 +320,15 @@ watch(panels, () => {
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
+  /*
+   * Smooth here and not only on `html`: scroll-behavior is not inherited, and
+   * the track is its own scroll container — so the page's smooth scrolling
+   * never reached it and every dot press and arrow key jumped instantly.
+   *
+   * The reduced-motion block sets `scroll-behavior: auto !important` on every
+   * element, so this turns itself off where it should.
+   */
+  scroll-behavior: smooth;
   scrollbar-width: none;
   /* The panels are the page; a bar across them would be chrome. */
   -ms-overflow-style: none;

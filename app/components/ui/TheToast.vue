@@ -31,6 +31,18 @@ const props = withDefaults(defineProps<{
 const dismissed = ref(false)
 const paused = ref(false)
 
+/*
+ * Teleported to the body, because `position: fixed` is not always relative to
+ * the viewport: any ancestor with a transform, a filter or a backdrop-filter
+ * becomes the containing block instead. The booking card has a backdrop blur,
+ * which pinned this to the top of the card rather than the top of the screen.
+ *
+ * Disabled until mounted so the server renders it where it stands — which costs
+ * nothing, since a toast has nothing to say before anyone has done anything.
+ */
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
+
 const visible = computed(() => Boolean(props.message) && !dismissed.value)
 
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -65,40 +77,45 @@ onBeforeUnmount(clear)
 </script>
 
 <template>
-  <Transition name="toast">
-    <output
-      v-if="visible"
-      class="toast fixed inset-x-0 z-50 mx-auto flex w-fit max-w-[min(92vw,34rem)] items-start gap-3 rounded-card border px-3.5 py-2.5 text-small leading-[1.45] shadow-lg backdrop-blur-md"
-      :class="tone === 'critical'
-        ? 'border-alert/40 bg-alert-toast text-text'
-        : 'border-gold/40 bg-gold-toast text-text'"
-      @pointerenter="paused = true"
-      @pointerleave="paused = false"
-      @focusin="paused = true"
-      @focusout="paused = false"
-    >
-      {{ message }}
-
-      <button
-        class="-me-1 -mt-0.5 grid size-6 shrink-0 place-items-center rounded text-text-muted transition-colors duration-(--duration-quick) hover:text-text"
-        type="button"
-        @click="dismissed = true"
+  <Teleport
+    to="body"
+    :disabled="!mounted"
+  >
+    <Transition name="toast">
+      <output
+        v-if="visible"
+        class="toast fixed inset-x-0 z-50 mx-auto flex w-fit max-w-[min(92vw,34rem)] items-start gap-3 rounded-card border px-3.5 py-2.5 text-small leading-[1.45] shadow-lg backdrop-blur-md"
+        :class="tone === 'critical'
+          ? 'border-alert/40 bg-alert-toast text-text'
+          : 'border-gold/40 bg-gold-toast text-text'"
+        @pointerenter="paused = true"
+        @pointerleave="paused = false"
+        @focusin="paused = true"
+        @focusout="paused = false"
       >
-        <svg
-          class="size-3.5"
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          aria-hidden="true"
+        {{ message }}
+
+        <button
+          class="-me-1 -mt-0.5 grid size-6 shrink-0 place-items-center rounded text-text-muted transition-colors duration-(--duration-quick) hover:text-text"
+          type="button"
+          @click="dismissed = true"
         >
-          <path d="m3 3 8 8M11 3l-8 8" />
-        </svg>
-        <em class="visually-hidden">Dismiss this message</em>
-      </button>
-    </output>
-  </Transition>
+          <svg
+            class="size-3.5"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="m3 3 8 8M11 3l-8 8" />
+          </svg>
+          <em class="visually-hidden">Dismiss this message</em>
+        </button>
+      </output>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>

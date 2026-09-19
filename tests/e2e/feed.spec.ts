@@ -259,7 +259,7 @@ test.describe('03 · Feed · states', () => {
     await expect(cards(page)).toHaveCount(0)
     await expect(page.getByText(/no chapters yet/i)).toBeVisible()
     // The ask survives an empty briefing; it is the point of the page.
-    await expect(page.getByRole('link', { name: /book appointment/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /book appointment/i })).toBeVisible()
   })
 })
 
@@ -271,9 +271,12 @@ test.describe('03 · Feed · the viewing request', () => {
     await expect(request).toBeVisible()
     await expect(request).toContainText('Berkeley Square North')
 
-    const book = page.getByRole('link', { name: /book appointment/i })
+    // It opens in place rather than navigating: the briefing is the argument
+    // for booking, and leaving it asks someone to carry that in their head.
+    const book = page.getByRole('button', { name: /book appointment/i })
     await book.click()
-    await expect(page).toHaveURL(/\/book$/)
+    await expect(page).toHaveURL(new RegExp(`${FEED}$`))
+    await expect(page.getByLabel('Your name')).toBeVisible()
   })
 })
 

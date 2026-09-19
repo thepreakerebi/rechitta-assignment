@@ -13,7 +13,8 @@ import type { Page } from '@playwright/test'
 
 const PHONE = { width: 390, height: 844 }
 
-const toast = (page: Page) => page.locator('main > output')
+/** Teleported to the body, so it is not inside <main>. */
+const toast = (page: Page) => page.locator('output.toast')
 
 const open = async (page: Page, path: string) => {
   await page.setViewportSize(PHONE)

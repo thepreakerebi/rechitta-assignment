@@ -204,31 +204,23 @@ test.describe('02 · Onboarding · layout', () => {
     await expect(page).toHaveURL(/\/$/)
   })
 
-  test('does not blur its glass while a page is transitioning', async ({ page }) => {
+  test('takes the orb out of compositing the moment a route change starts', async ({ page }) => {
     await page.setViewportSize(PHONE)
     await page.goto('/onboarding')
-    await page.locator('main ul li').first().waitFor()
+    await page.locator('main canvas').waitFor()
 
-    const filterWhile = (transitionClass: string | null) =>
-      page.evaluate((className) => {
-        const main = document.querySelector('main')!
-        main.classList.remove('page-leave-active', 'page-enter-active')
-        if (className) main.classList.add(className)
-        const chip = document.querySelector('main ul li q')!
-        const used = getComputedStyle(chip).backdropFilter
-        main.classList.remove('page-leave-active', 'page-enter-active')
-        return used
-      }, transitionClass)
+    const canvas = page.locator('main canvas')
+    await expect(canvas).toHaveCSS('visibility', 'visible')
 
-    // At rest the chips are glass.
-    expect(await filterWhile(null)).toContain('blur')
-
-    // Mid-transition they are not. A page fade re-roots every backdrop-filter
-    // beneath it; the blur then samples an empty backdrop and paints white,
-    // which is a full-width flash across the orb. Measured at a peak mean
-    // brightness of 135 with the blur left on, and 30 with it switched off.
-    expect(await filterWhile('page-leave-active')).toBe('none')
-    expect(await filterWhile('page-enter-active')).toBe('none')
+    // A route change rebuilds the page's compositor layers, and a WebGL canvas
+    // caught in that rebuild is presented before it is painted — a full-width
+    // white flash across the orb, measured at 51% of the frame blown out.
+    // Hiding it costs nothing because the page is already leaving.
+    //
+    // Opacity is not enough: a canvas faded to zero is still composited and the
+    // flash comes straight back. It has to leave painting altogether.
+    await page.locator('nav[aria-label="Onboarding progress"] a').first().click()
+    await expect(canvas).toHaveCSS('visibility', 'hidden')
   })
 
   test('is operable by keyboard alone', async ({ page }) => {

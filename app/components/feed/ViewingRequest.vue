@@ -67,9 +67,32 @@ const draft = computed(() => ({ name: name.value, email: email.value, slot: slot
  */
 const errors = computed<BookingErrors>(() => (submitted.value ? validateBooking(draft.value) : {}))
 
+const cta = ref<HTMLButtonElement | null>(null)
+
 const expand = async () => {
   open.value = true
   await loadSlots()
+}
+
+/**
+ * Closing without booking.
+ *
+ * What was typed stays. Someone who opens the form, thinks better of it and
+ * opens it again an hour later has not changed their mind about their own name,
+ * and throwing it away is a punishment for hesitating. The complaints do go —
+ * reopening to be told off for a form you never sent is worse than not being
+ * told at all.
+ *
+ * Focus comes back to the control that opened it, because that control is now
+ * the only thing left to press and a keyboard is otherwise stranded on a
+ * fieldset that has just been made inert.
+ */
+const collapse = async () => {
+  open.value = false
+  submitted.value = false
+  failure.value = null
+  await nextTick()
+  cta.value?.focus()
 }
 
 const focusField = (field: ReturnType<typeof firstInvalid>) => {
@@ -197,6 +220,7 @@ const toast = computed(() =>
         class="booking"
         novalidate
         @submit.prevent="onSubmit"
+        @keydown.esc="open && !submitting && collapse()"
       >
         <!-- The disclosure. Closed it is a zero-height row; open it is the
              height of its own content, so the button below is pushed down by
@@ -213,9 +237,10 @@ const toast = computed(() =>
             <li>
               <fieldset
                 ref="slotGroup"
-                class="min-w-0"
+                class="slots"
               >
-                <legend class="caps-meta mb-2">Choose a time</legend>
+                <legend>Choose a time</legend>
+                <small class="help">Viewings last about forty minutes.</small>
 
                 <!-- Loading: the chips' own shape, so nothing jumps when the
                      times arrive. -->
@@ -346,7 +371,21 @@ const toast = computed(() =>
         </fieldset>
 
         <p class="action">
+          <!-- Only while there is something to close. A dismiss control on a
+               form that is not open is a control that does nothing. -->
           <button
+            v-if="open"
+            class="dismiss"
+            type="button"
+            :disabled="submitting"
+            @click="collapse"
+          >
+            Not now
+            <em class="visually-hidden">— close the booking form</em>
+          </button>
+
+          <button
+            ref="cta"
             class="cta"
             type="submit"
             :aria-expanded="open"
@@ -533,17 +572,37 @@ const toast = computed(() =>
   gap: 0.35rem;
 }
 
-.field label {
+/*
+ * One rule for all three, because a group of times is a field like any other.
+ * The legend used to be set as an eyebrow — uppercase, letter-spaced, faint —
+ * which made it read as a section heading sitting above the form rather than
+ * as the label of the control under it.
+ */
+.field label,
+.slots legend {
   font-family: var(--font-ui);
   font-size: var(--text-small);
   font-weight: 500;
   color: var(--color-text);
 }
 
-.field small {
+.field small,
+.slots .help {
+  display: block;
   font-size: var(--text-small);
   line-height: 1.5;
   color: var(--color-note-text);
+}
+
+.slots {
+  min-inline-size: 0;
+}
+
+/* A fieldset's legend sits outside its flex flow, so the rhythm the other
+   fields get from `gap` is set here by hand — to the same 0.35rem. */
+.slots legend,
+.slots .help {
+  margin-block-end: 0.35rem;
 }
 
 .field input {
@@ -581,7 +640,29 @@ const toast = computed(() =>
 
 .action {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.dismiss {
+  min-block-size: 2.75rem;
+  padding-inline: 1rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  color: var(--color-text-faint);
+  transition: color var(--duration-quick) var(--ease-out-soft);
+}
+
+.dismiss:hover {
+  color: var(--color-text);
+}
+
+.dismiss:disabled {
+  opacity: 0.5;
 }
 
 .cta {

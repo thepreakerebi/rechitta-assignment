@@ -103,6 +103,68 @@ test.describe('Booking · opening', () => {
   })
 })
 
+test.describe('Booking · closing', () => {
+  const dismiss = (page: Page) => page.getByRole('button', { name: /not now/i })
+
+  test('offers a way out only once there is something to close', async ({ page }) => {
+    await page.setViewportSize(PHONE)
+    await page.goto(FEED)
+    await page.waitForLoadState('networkidle')
+
+    await expect(dismiss(page)).toHaveCount(0)
+    await page.getByRole('button', { name: /book appointment/i }).click()
+    await expect(dismiss(page)).toBeVisible()
+  })
+
+  test('closes the form and gives the button its first job back', async ({ page }) => {
+    await open(page)
+    const panel = page.locator('main form fieldset.disclosure')
+
+    await dismiss(page).click()
+
+    await expect(cta(page)).toHaveText(/Book Appointment/)
+    await expect(cta(page)).toHaveAttribute('aria-expanded', 'false')
+    await expect(panel).toHaveAttribute('inert', '')
+    await expect.poll(async () => (await panel.boundingBox())!.height).toBeLessThan(2)
+    await expect(dismiss(page)).toHaveCount(0)
+  })
+
+  test('escape closes it too, from wherever focus happens to be', async ({ page }) => {
+    await open(page)
+
+    await page.getByLabel('Your name').fill('Aryaman Shah')
+    await page.keyboard.press('Escape')
+
+    await expect(cta(page)).toHaveText(/Book Appointment/)
+  })
+
+  test('keeps what was typed, and drops the telling-off', async ({ page }) => {
+    await open(page)
+    await fill(page, { email: 'not-an-address' })
+    await cta(page).click()
+    await expect(problems(page)).toContainText(/email address does not look right/)
+
+    await dismiss(page).click()
+    await page.getByRole('button', { name: /book appointment/i }).click()
+
+    // Hesitating is not a reason to lose your own name.
+    await expect(page.getByLabel('Your name')).toHaveValue('Aryaman Shah')
+    // But being told off again for a form you never sent is worse than nothing.
+    await expect(problems(page)).toBeEmpty()
+    await expect(page.getByLabel('Email')).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  test('hands focus back rather than stranding it on an inert fieldset', async ({ page }) => {
+    test.skip(test.info().project.name === 'mobile-safari', 'WebKit excludes some controls from tab order by default')
+    await open(page)
+
+    await page.getByLabel('Email').focus()
+    await page.keyboard.press('Escape')
+
+    await expect(cta(page)).toBeFocused()
+  })
+})
+
 test.describe('Booking · the form', () => {
   test('labels every field properly, and never as a placeholder', async ({ page }) => {
     await open(page)
@@ -115,6 +177,30 @@ test.describe('Booking · the form', () => {
     // Helper text sits between the label and the control.
     await expect(page.getByText(/Whoever will be meeting us at the door/)).toBeVisible()
     await expect(page.getByText(/We send the confirmation and the directions here/)).toBeVisible()
+  })
+
+  test('labels every field the same way, times included', async ({ page }) => {
+    await open(page)
+
+    const styles = await page.evaluate(() => {
+      const read = (el: Element) => {
+        const s = getComputedStyle(el)
+        return [s.fontFamily, s.fontSize, s.fontWeight, s.color, s.textTransform, s.letterSpacing].join('|')
+      }
+      const form = document.querySelector('main form')!
+      return {
+        legend: read(form.querySelector('fieldset.slots legend')!),
+        labels: [...form.querySelectorAll('.field label')].map(read),
+        legendHelp: read(form.querySelector('fieldset.slots .help')!),
+        helps: [...form.querySelectorAll('.field small')].map(read),
+      }
+    })
+
+    // A group of times is a field like any other. Set as an eyebrow it read as
+    // a section heading above the form rather than the label of the control
+    // under it.
+    for (const label of styles.labels) expect(styles.legend).toBe(label)
+    for (const help of styles.helps) expect(styles.legendHelp).toBe(help)
   })
 
   test('a taken time says so on itself, not in a tooltip', async ({ page }) => {

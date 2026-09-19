@@ -149,13 +149,14 @@ export const session: Session = {
     note: '1 new note for you',
   },
   projectSlug: PROJECT_SLUG,
+  // The five the comp shows, in the order it shows them — the onboarding
+  // screen lays them out against fixed positions, so the order is meaningful.
   suggestedQuestions: [
     'Is there a 2-bed available…',
     'What’s the price history?',
     'What is proximity to good schools',
     'Show me the floor plan',
     'How does the payment plan work…',
-    'What are the service charges?',
   ],
 }
 

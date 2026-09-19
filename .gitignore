@@ -33,3 +33,6 @@ blob-report
 
 # Deploy
 .vercel
+
+# Throwaway measurement scripts
+*.tmp.mjs

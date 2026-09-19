@@ -80,6 +80,9 @@ test.describe('01 · Splash', () => {
   })
 
   test('is operable by keyboard alone', async ({ page }) => {
+    // WebKit only tabs to links when "Press Tab to highlight each item" is on,
+    // which is an OS setting rather than anything the page controls.
+    test.skip(test.info().project.name === 'mobile-safari', 'WebKit excludes links from tab order by default')
     await page.setViewportSize(PHONE)
     await page.goto('/')
     await expect(page.getByText('Sara Rahman')).toBeVisible()
@@ -88,7 +91,15 @@ test.describe('01 · Splash', () => {
     await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused()
 
     await page.keyboard.press('Tab')
-    await expect(page.getByRole('link', { name: 'Skip', exact: true })).toBeFocused()
+    await expect(page.locator('main footer > a').first()).toBeFocused()
+
+    // The pager is real navigation now, so it sits in the tab order between
+    // Skip and Next — three steps, each its own link.
+    const steps = page.locator('nav[aria-label="Onboarding progress"] a')
+    for (let index = 0; index < 3; index++) {
+      await page.keyboard.press('Tab')
+      await expect(steps.nth(index)).toBeFocused()
+    }
 
     await page.keyboard.press('Tab')
     await expect(page.getByRole('link', { name: 'Next' })).toBeFocused()

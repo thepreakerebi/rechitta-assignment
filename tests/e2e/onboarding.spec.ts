@@ -51,8 +51,12 @@ test.describe('02 · Onboarding', () => {
     await expect(page.getByRole('button', { name: /allow microphone/i })).toBeVisible()
   })
 
-  test('actually asks the browser for the microphone', async ({ page }) => {
+  test('actually asks the browser for the microphone', async ({ page, context }) => {
     needsFakeDevice()
+    // The project pre-grants the microphone, which is the returning-visitor
+    // path — and a returning visitor is deliberately never asked again. Clear
+    // it so this is a first visit, with the fake UI accepting the prompt.
+    await context.clearPermissions()
     await spyOnGetUserMedia(page)
     await page.setViewportSize(PHONE)
     await page.goto('/onboarding')
@@ -71,8 +75,9 @@ const needsFakeDevice = () =>
   test.skip(test.info().project.name !== 'chromium-mic-granted', 'needs a fake capture device')
 
 test.describe('02 · Onboarding · microphone granted', () => {
-  test('confirms rather than whisking you away', async ({ page }) => {
+  test('confirms rather than whisking you away', async ({ page, context }) => {
     needsFakeDevice()
+    await context.clearPermissions()
     await page.setViewportSize(PHONE)
     await page.goto('/onboarding')
 
@@ -197,6 +202,33 @@ test.describe('02 · Onboarding · layout', () => {
 
     await steps.first().click()
     await expect(page).toHaveURL(/\/$/)
+  })
+
+  test('does not blur its glass while a page is transitioning', async ({ page }) => {
+    await page.setViewportSize(PHONE)
+    await page.goto('/onboarding')
+    await page.locator('main ul li').first().waitFor()
+
+    const filterWhile = (transitionClass: string | null) =>
+      page.evaluate((className) => {
+        const main = document.querySelector('main')!
+        main.classList.remove('page-leave-active', 'page-enter-active')
+        if (className) main.classList.add(className)
+        const chip = document.querySelector('main ul li q')!
+        const used = getComputedStyle(chip).backdropFilter
+        main.classList.remove('page-leave-active', 'page-enter-active')
+        return used
+      }, transitionClass)
+
+    // At rest the chips are glass.
+    expect(await filterWhile(null)).toContain('blur')
+
+    // Mid-transition they are not. A page fade re-roots every backdrop-filter
+    // beneath it; the blur then samples an empty backdrop and paints white,
+    // which is a full-width flash across the orb. Measured at a peak mean
+    // brightness of 135 with the blur left on, and 30 with it switched off.
+    expect(await filterWhile('page-leave-active')).toBe('none')
+    expect(await filterWhile('page-enter-active')).toBe('none')
   })
 
   test('is operable by keyboard alone', async ({ page }) => {

@@ -261,6 +261,16 @@
   }
 }
 
+/*
+ * See the `glass` utility: a backdrop-filter whose root is mid-change paints
+ * white. Nothing blurs while a page is on its way in or out.
+ */
+.page-enter-active .glass,
+.page-leave-active .glass {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 /* ---------------------------------------------------------------------------
    Utilities used often enough to earn a name
 --------------------------------------------------------------------------- */
@@ -279,6 +289,21 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-text-faint);
+}
+
+/*
+ * The translucent surface the prompt chips and the privacy note share.
+ *
+ * The blur is a variable so both can use one utility, and it is switched off
+ * while a page transition runs. A fade takes a page to opacity 0, which
+ * re-roots every backdrop-filter beneath it; the blur then samples an empty
+ * backdrop and resolves to white, which is the flash. Nobody can see a six
+ * pixel blur during a three-hundred millisecond fade, so nothing is lost.
+ */
+@utility glass {
+  background-color: var(--color-bubble);
+  backdrop-filter: blur(var(--glass-blur, 6px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 6px));
 }
 
 /* Screen-reader-only text, without a wrapper element. */

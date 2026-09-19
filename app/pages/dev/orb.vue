@@ -77,7 +77,7 @@ const controls = [
       </figure>
 
       <form
-        class="flex flex-col gap-6 rounded-panel border border-hairline bg-surface p-5 backdrop-blur-md"
+        class="glass flex flex-col gap-6 rounded-panel border border-hairline p-5 [--glass-blur:12px]"
         @submit.prevent
       >
         <fieldset class="flex flex-col gap-3 border-0 p-0">

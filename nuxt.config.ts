@@ -67,6 +67,15 @@ export default defineNuxtConfig({
   },
 
   app: {
+    /*
+     * Every screen here is a full-bleed dark composition, so a hard swap between
+     * them reads as a jolt — and on a real browser the moment a page mounts is
+     * also when blend-mode and backdrop-filter layers can paint one unblended
+     * frame. Crossing out and then in covers both: the outgoing screen fades to
+     * the page background, which is already the right colour, and the incoming
+     * one arrives from nothing.
+     */
+    pageTransition: { name: 'page', mode: 'out-in' },
     head: {
       htmlAttrs: { lang: 'en', 'data-theme': 'dark' },
       meta: [

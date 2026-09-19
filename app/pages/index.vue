@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OnboardingPager from '~/components/ui/OnboardingPager.vue'
 import type { Session } from '#shared/types/domain'
 
 /**
@@ -148,15 +149,7 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
         Skip
       </NuxtLink>
 
-      <p class="visually-hidden">Step 1 of 3</p>
-      <ol
-        class="flex items-center gap-1"
-        aria-hidden="true"
-      >
-        <li class="h-2 w-4 rounded bg-text" />
-        <li class="size-2 rounded bg-hairline-strong" />
-        <li class="size-2 rounded bg-hairline-strong" />
-      </ol>
+      <OnboardingPager :current="1" />
 
       <NuxtLink
         class="flex items-center justify-center gap-2 rounded-pill bg-control px-5 py-3 font-ui text-ui font-medium text-text-bright transition-[transform,background-color] duration-(--duration-quick) hover:bg-deep active:scale-[0.98]"

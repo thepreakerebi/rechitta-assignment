@@ -27,6 +27,8 @@
 
   --color-card: #171717;
   --color-control: #011d24;
+  /* The glass chips and the privacy note share one surface. */
+  --color-bubble: rgb(42 42 42 / 0.4);
 
   --color-surface: rgb(255 255 255 / 0.04);
   --color-surface-raised: rgb(255 255 255 / 0.07);
@@ -38,6 +40,8 @@
   --color-text-muted: #a3a3a3;
   --color-text-meta: #a1a1a1;
   --color-text-faint: #898989;
+  --color-bubble-text: rgb(243 244 246 / 0.9);
+  --color-note-text: #9ca3af;
 
   /* Accents -------------------------------------------------------------- */
   --color-gold: #c6a059;
@@ -47,6 +51,7 @@
   --color-glow: #00a9cf;
 
   /* Lines ---------------------------------------------------------------- */
+  --color-hairline-soft: rgb(255 255 255 / 0.05);
   --color-hairline: rgb(255 255 255 / 0.1);
   --color-hairline-strong: rgb(255 255 255 / 0.2);
 
@@ -63,6 +68,8 @@
      itself instead.                                                          */
   --text-eyebrow: clamp(0.625rem, 0.5833rem + 0.1667cqi, 0.75rem);   /* 10 → 12 */
   --text-small: clamp(0.6875rem, 0.6458rem + 0.1667cqi, 0.8125rem);  /* 11 → 13 */
+  --text-prompt: clamp(0.6875rem, 0.625rem + 0.25cqi, 0.875rem);     /* 11 → 14 */
+  --text-note: clamp(0.8125rem, 0.7708rem + 0.1667cqi, 0.9375rem);   /* 13 → 15 */
   --text-ui: clamp(0.875rem, 0.8333rem + 0.1667cqi, 1rem);           /* 14 → 16 */
   --text-body: clamp(0.875rem, 0.7917rem + 0.3333cqi, 1.125rem);     /* 14 → 18 */
   --text-lead: clamp(1.125rem, 1rem + 0.5cqi, 1.5rem);               /* 18 → 24 */
@@ -213,6 +220,44 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Page transitions
+   ---------------------------------------------------------------------------
+   Deliberately asymmetric: leaving is quicker than arriving, so forward motion
+   feels decisive and the new screen still has time to settle. The gap between
+   the two shows the body background, which is the same near-black every screen
+   sits on, so nothing ever flashes through.
+--------------------------------------------------------------------------- */
+
+.page-enter-active {
+  transition:
+    opacity var(--duration-base) var(--ease-out-soft),
+    translate var(--duration-base) var(--ease-out-soft);
+}
+
+.page-leave-active {
+  transition:
+    opacity var(--duration-quick) var(--ease-out-soft),
+    translate var(--duration-quick) var(--ease-out-soft);
+}
+
+.page-enter-from {
+  opacity: 0;
+  translate: 0 0.5rem;
+}
+
+.page-leave-to {
+  opacity: 0;
+  translate: 0 -0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-from,
+  .page-leave-to {
+    translate: none;
   }
 }
 

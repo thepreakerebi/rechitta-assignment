@@ -13,6 +13,7 @@ import type { Page } from '@playwright/test'
 
 const PHONE = { width: 390, height: 844 }
 const NARROW = { width: 320, height: 640 }
+const DESKTOP = { width: 1440, height: 900 }
 const FEED = '/project/berkeley-square-north'
 
 const open = async (page: Page, path: string, size = PHONE) => {
@@ -110,6 +111,102 @@ test.describe('03 · Feed · the greeting', () => {
     expect(calls).toBe(0)
   })
 
+  test('the whole orb shows, with nothing painting a box around it', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    // The greeting used to dissolve the orb with two multiply washes sized to
+    // the orb's block rather than the page. Multiplying a near-black over a
+    // near-black darkens it, so the wash drew a visible rectangle around the
+    // orb and cut its lower half off. Nothing here may darken a region of the
+    // page that is narrower than the page.
+    const offenders = await page.locator('main header *').evaluateAll(nodes =>
+      nodes.filter((node) => {
+        const blend = getComputedStyle(node).mixBlendMode
+        return blend === 'multiply' || blend === 'darken'
+      }).length,
+    )
+    expect(offenders).toBe(0)
+  })
+
+  test('the orb is half swallowed by the page, without a box around it', async ({ page }) => {
+    for (const size of [PHONE, DESKTOP]) {
+      await open(page, FEED, size)
+
+      const m = await page.evaluate(() => {
+        const stage = document.querySelector('main header .stage') as HTMLElement
+        const mask = getComputedStyle(stage, '::after')
+        const hero = document.querySelector('main header')!.getBoundingClientRect()
+        return {
+          hasGradient: mask.backgroundImage.includes('gradient'),
+          maskWidth: Number.parseFloat(mask.width),
+          stageWidth: stage.getBoundingClientRect().width,
+          heroWidth: hero.width,
+        }
+      })
+
+      // Half the orb is meant to sink into the page, so the gradient exists.
+      expect(m.hasGradient, `at ${size.width}`).toBe(true)
+
+      // And it runs past the whole header, not just the group. Sized to the
+      // group it painted a dark rectangle the width of the group — the black
+      // box around the orb.
+      expect(m.maskWidth, `at ${size.width}`).toBeGreaterThan(m.heroWidth)
+      expect(m.maskWidth).toBeGreaterThan(m.stageWidth)
+    }
+  })
+
+  test('the buttons straddle the seam onto the first chapter', async ({ page }) => {
+    for (const size of [PHONE, DESKTOP]) {
+      await open(page, FEED, size)
+
+      const m = await page.evaluate(() => {
+        const hero = document.querySelector('main header')!.getBoundingClientRect()
+        const discs = document.querySelector('main header nav')!.getBoundingClientRect()
+        return { heroBottom: hero.bottom, top: discs.top, bottom: discs.bottom }
+      })
+
+      // Half on the greeting, half on the photograph below it, as the comp
+      // draws them — which means the header must not clip its own children.
+      expect(m.top, `at ${size.width}`).toBeLessThan(m.heroBottom)
+      expect(m.bottom, `at ${size.width}`).toBeGreaterThan(m.heroBottom)
+    }
+  })
+
+  test('the greeting is as tall as its words, at every width', async ({ page }) => {
+    for (const size of [NARROW, PHONE, { width: 1024, height: 900 }, DESKTOP]) {
+      await open(page, FEED, size)
+
+      const { header, orb } = await page.evaluate(() => ({
+        header: document.querySelector('main header')!.getBoundingClientRect().height,
+        orb: document.querySelector('main header canvas')!.getBoundingClientRect().width,
+      }))
+
+      // The room above the words is a share of the orb, so the block stays in
+      // proportion to it. Written as a percentage it measured the full-width
+      // header instead, and a desktop window opened 600px of empty space
+      // between the orb and the greeting.
+      expect(header, `at ${size.width}×${size.height}`).toBeLessThan(orb * 2.2)
+    }
+  })
+
+  test('the buttons sit below the greeting, never through it', async ({ page }) => {
+    for (const size of [NARROW, PHONE, { width: 1024, height: 900 }, DESKTOP]) {
+      await open(page, FEED, size)
+
+      const boxes = await page.evaluate(() => {
+        const speech = document.querySelector('main header figcaption')!.getBoundingClientRect()
+        const discs = document.querySelector('main header nav')!.getBoundingClientRect()
+        return { speechBottom: speech.bottom, discsTop: discs.top }
+      })
+
+      // Placed absolutely, the buttons had no way to know how tall the
+      // greeting had become — a line more than the guess and the copy ran
+      // straight through them.
+      expect(boxes.discsTop, `at ${size.width}×${size.height}`)
+        .toBeGreaterThanOrEqual(boxes.speechBottom)
+    }
+  })
+
   test('both discs lead to the screen that does listen', async ({ page }) => {
     await open(page, FEED)
 
@@ -179,8 +276,6 @@ test.describe('03 · Feed · the viewing request', () => {
     await expect(page).toHaveURL(/\/book$/)
   })
 })
-
-const DESKTOP = { width: 1440, height: 900 }
 
 test.describe('03 · Feed · the accordion', () => {
   const panels = (page: Page) => page.locator('main .panel')

@@ -229,6 +229,12 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
  * corner of the eye is tiring; a pause is what makes the movement read as
  * deliberate.
  *
+ * It is a yaw and nothing else. An earlier version paired a small rotateY with
+ * a vertical translate and an X-axis tilt, and the translate was the only part
+ * the eye actually caught — it read as bobbing up and down. A flat plane also
+ * needs a short perspective and a real angle before a turn is legible at all,
+ * hence 420px and 28 degrees rather than 900px and 8.
+ *
  * The lustre runs on the same twelve seconds so the glass brightens through the
  * turn and calms while it is still. Transform and filter only, so the whole
  * thing stays on the compositor and nothing triggers layout.
@@ -248,27 +254,23 @@ const isLoading = computed(() => status.value === 'pending' || status.value === 
   /* Square, and holding. */
   0%,
   8% {
-    transform: perspective(900px) rotate3d(0, 1, 0, 0deg) rotate3d(1, 0, 0, 0deg)
-      translate3d(0, 0, 0);
+    transform: perspective(420px) rotateY(0deg);
   }
 
-  /* Away to the left. */
+  /* Turned away to the left. */
   28% {
-    transform: perspective(900px) rotate3d(0, 1, 0, -8deg) rotate3d(1, 0, 0, 2deg)
-      translate3d(0, -5px, 0);
+    transform: perspective(420px) rotateY(-28deg);
   }
 
-  /* Through to the right. */
+  /* Through square and on to the right. */
   52% {
-    transform: perspective(900px) rotate3d(0, 1, 0, 8deg) rotate3d(1, 0, 0, -1.5deg)
-      translate3d(0, 5px, 0);
+    transform: perspective(420px) rotateY(28deg);
   }
 
   /* Back to square, then still until the cycle comes round. */
   70%,
   100% {
-    transform: perspective(900px) rotate3d(0, 1, 0, 0deg) rotate3d(1, 0, 0, 0deg)
-      translate3d(0, 0, 0);
+    transform: perspective(420px) rotateY(0deg);
   }
 }
 

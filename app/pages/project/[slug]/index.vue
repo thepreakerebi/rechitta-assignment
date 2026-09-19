@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AgentGreeting from '~/components/feed/AgentGreeting.vue'
-import ChapterCard from '~/components/feed/ChapterCard.vue'
+import ChapterDeck from '~/components/feed/ChapterDeck.vue'
 import ViewingRequest from '~/components/feed/ViewingRequest.vue'
 import type { Project, Session } from '#shared/types/domain'
 
@@ -107,23 +107,10 @@ const greeting = computed(() => {
       This briefing has no chapters yet. The viewing below is still open.
     </p>
 
-    <ul
+    <ChapterDeck
       v-else
-      class="chapters"
-    >
-      <li
-        v-for="(chapter, index) in chapters"
-        :key="chapter.id"
-        class="chapter-slot"
-      >
-        <ChapterCard
-          :chapter="chapter"
-          :index="index + 1"
-          :total="chapters.length"
-          :priority="index === 0"
-        />
-      </li>
-    </ul>
+      :chapters="chapters"
+    />
 
     <footer class="px-edge py-[clamp(1.5rem,6vh,3rem)]">
       <ViewingRequest
@@ -139,21 +126,37 @@ const greeting = computed(() => {
   container-type: inline-size;
 }
 
+/* The loading stand-in only. The real chapters lay themselves out, in either
+   of their two shapes, inside ChapterDeck. */
 .chapters {
   display: flex;
   flex-direction: column;
 }
 
-/*
- * 401×484 in the comp — a touch taller than 5:6. Held as a ratio rather than a
- * height so the card grows with the screen instead of leaving a letterbox, and
- * capped in vh so a short laptop window still shows the foot of one card and
- * the head of the next, which is what makes the feed feel like a scroll.
- */
 .chapter-slot {
   inline-size: 100%;
   aspect-ratio: 400 / 484;
   max-block-size: 86vh;
+}
+
+@media (width >= 64rem) {
+  .chapters {
+    flex-direction: row;
+    block-size: min(84vh, 44rem);
+  }
+
+  .chapter-slot {
+    inline-size: auto;
+    aspect-ratio: auto;
+    max-block-size: none;
+    flex: 1 1 0;
+  }
+
+  /* The first stands in for the open panel, so the skeleton has the shape the
+     accordion will arrive in rather than seven equal columns. */
+  .chapter-slot:first-child {
+    flex-grow: 7;
+  }
 }
 
 .skeleton {

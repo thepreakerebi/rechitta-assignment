@@ -180,6 +180,105 @@ test.describe('03 · Feed · the viewing request', () => {
   })
 })
 
+const DESKTOP = { width: 1440, height: 900 }
+
+test.describe('03 · Feed · the accordion', () => {
+  const panels = (page: Page) => page.locator('main .panel')
+  const openers = (page: Page) => page.locator('main .panel button')
+
+  test('lays the chapters side by side, one of them open', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    const boxes = await panels(page).evaluateAll(list =>
+      list.map(el => el.getBoundingClientRect().width))
+
+    expect(boxes).toHaveLength(7)
+    // One wide panel, the rest squeezed into strips.
+    expect(Math.max(...boxes)).toBeGreaterThan(Math.min(...boxes) * 4)
+    await expect(openers(page).first()).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('clicking a strip opens it, and closes the one that was open', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    const widthOf = (i: number) =>
+      panels(page).nth(i).evaluate(el => el.getBoundingClientRect().width)
+
+    await openers(page).nth(3).click()
+
+    await expect(openers(page).nth(3)).toHaveAttribute('aria-expanded', 'true')
+    await expect(openers(page).first()).toHaveAttribute('aria-expanded', 'false')
+    await expect.poll(() => widthOf(3)).toBeGreaterThan(400)
+    await expect.poll(() => widthOf(0)).toBeLessThan(200)
+  })
+
+  test('the open panel shows its story; a strip shows its spine instead', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    // The footer would break mid-word in a strip, so it fades out there.
+    const footers = page.locator('main .panel article > footer')
+    await expect(footers.first()).toHaveCSS('opacity', '1')
+    await expect(footers.nth(1)).toHaveCSS('opacity', '0')
+
+    // The spine repeats the heading, so it is decoration to a screen reader.
+    const spine = panels(page).nth(1).locator('.spine')
+    await expect(spine).toHaveAttribute('aria-hidden', 'true')
+    await expect(spine).toHaveText('Dubai 2040')
+  })
+
+  test('walks on the arrow keys, and leaves the browser its own', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    await openers(page).first().focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(openers(page).nth(1)).toHaveAttribute('aria-expanded', 'true')
+    await expect(openers(page).nth(1)).toBeFocused()
+
+    await page.keyboard.press('ArrowLeft')
+    await expect(openers(page).first()).toHaveAttribute('aria-expanded', 'true')
+
+    await page.keyboard.press('End')
+    await expect(openers(page).last()).toHaveAttribute('aria-expanded', 'true')
+
+    await page.keyboard.press('Home')
+    await expect(openers(page).first()).toHaveAttribute('aria-expanded', 'true')
+
+    // Alt+Left is Back. Taking it would be worse than offering nothing.
+    await page.keyboard.press('Alt+ArrowRight')
+    await expect(openers(page).first()).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('stops at both ends rather than wrapping', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    await openers(page).first().focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(openers(page).first()).toHaveAttribute('aria-expanded', 'true')
+
+    await page.keyboard.press('End')
+    await page.keyboard.press('ArrowRight')
+    await expect(openers(page).last()).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('every opener says which chapter it opens', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    // Seven identical panels would otherwise all be announced as "button".
+    await expect(openers(page).nth(2)).toHaveAccessibleName(/chapter 3 of 7.*Jumeirah Village Circle/i)
+  })
+
+  test('the accordion does not exist on a phone', async ({ page }) => {
+    await open(page, FEED)
+
+    // Its controls must not be focusable where they have no effect, or the
+    // stack gains seven invisible tab stops.
+    await expect(openers(page)).toHaveCount(7)
+    for (const opener of await openers(page).all()) {
+      await expect(opener).toBeHidden()
+    }
+  })
+})
+
 test.describe('03 · Feed · layout', () => {
   test('reflows at 320px with no horizontal scroll', async ({ page }) => {
     await open(page, FEED, NARROW)

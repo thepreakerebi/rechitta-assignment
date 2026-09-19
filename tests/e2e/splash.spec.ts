@@ -147,3 +147,26 @@ test.describe('01 · Splash', () => {
     expect(still.startsWith('none')).toBe(true)
   })
 })
+
+test.describe('01 · Splash · the mark in the tab', () => {
+  test('carries Rechitta’s own icon, and serves it', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+
+    const icons = await page.evaluate(() =>
+      [...document.querySelectorAll('link[rel*="icon"]')]
+        .map(link => ({ rel: link.getAttribute('rel')!, href: link.getAttribute('href')! })))
+
+    // An SVG for the tab and an opaque square for an iOS home screen, which
+    // applies its own rounding and ignores transparency.
+    expect(icons.map(icon => icon.rel).sort()).toEqual(['apple-touch-icon', 'icon'])
+
+    // Declared is not the same as served: a favicon that 404s still appears in
+    // the head and nowhere else.
+    for (const icon of icons) {
+      const response = await page.request.get(new URL(icon.href, page.url()).toString())
+      expect(response.status(), icon.href).toBe(200)
+      expect(response.headers()['content-type'], icon.href).toMatch(/svg|png/)
+    }
+  })
+})

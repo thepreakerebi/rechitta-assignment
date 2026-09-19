@@ -226,6 +226,7 @@ const answers: readonly Answer[] = [
     id: 'ask-overview',
     question: 'What makes this the perfect first investment?',
     transcript: 'The perfect first investment is the one you can afford to hold. Here is the whole of it — the figures, what is left, and how you would pay for it.',
+    voice: '/audio/ask-overview.m4a',
     panels: [
       statsPanel('overview-stats', HERO.skyline, [
         { id: 'entry', label: 'Investment from', value: 'AED 1.68M', detail: '2 bed · 1,489–2,300 sqft' },
@@ -241,6 +242,7 @@ const answers: readonly Answer[] = [
     id: 'ask-vision',
     question: 'What is Dubai 2040, and how does this fit into it?',
     transcript: 'Dubai 2040 is the city’s masterplan. Jumeirah Village Circle is one of the five centres it grows around, which is the short answer to why this plot exists.',
+    voice: '/audio/ask-vision.m4a',
     panels: [
       statsPanel('vision', HERO.vision, [
         { id: 'population', label: 'Planned population', value: '5.8M', detail: 'By 2040, from 3.5M today' },
@@ -254,6 +256,7 @@ const answers: readonly Answer[] = [
     id: 'ask-location',
     question: 'What is nearby, and how long does it take to get there?',
     transcript: 'Jumeirah Village Circle sits between the two main arteries, which is why everything below is a drive rather than a journey.',
+    voice: '/audio/ask-location.m4a',
     panels: [
       statsPanel('location', HERO.location, [
         { id: 'metro', label: 'Nearest metro', value: '8 min', detail: 'Dubai Internet City, by car' },
@@ -267,6 +270,7 @@ const answers: readonly Answer[] = [
     id: 'ask-details',
     question: 'Show me what is actually available',
     transcript: 'Three units are unsold at the moment. The ground-floor one is the only one with its own pool.',
+    voice: '/audio/ask-details.m4a',
     panels: [
       { kind: 'units', id: 'panel-details-units', hero: HERO.details, units },
       statsPanel('details', HERO.overview, [
@@ -281,6 +285,7 @@ const answers: readonly Answer[] = [
     id: 'ask-plans',
     question: 'How does the payment plan work?',
     transcript: 'Sixty per cent across construction, forty on handover. Three of the instalments are already behind you if you buy today.',
+    voice: '/audio/ask-plans.m4a',
     panels: [
       { kind: 'plans', id: 'panel-plans-schedule', hero: HERO.pricing, schedule: instalments },
       statsPanel('plans', HERO.skyline, [
@@ -295,6 +300,7 @@ const answers: readonly Answer[] = [
     id: 'ask-returns',
     question: 'What sort of return should I expect?',
     transcript: 'Twelve point seven three per cent gross, on current rents. The appreciation is the larger half of the answer.',
+    voice: '/audio/ask-returns.m4a',
     panels: [
       statsPanel('returns', HERO.returns, [
         { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: 'Gross, on current JVC rents' },
@@ -309,6 +315,7 @@ const answers: readonly Answer[] = [
     id: 'ask-amenities',
     question: 'What is it like to live here?',
     transcript: 'The podium is the answer to that. An acre and a bit of it, above the parking and below the flats.',
+    voice: '/audio/ask-amenities.m4a',
     panels: [
       statsPanel('amenities', HERO.amenities, [
         { id: 'deck', label: 'Amenity deck', value: '1.2 acres', detail: 'Podium level, above the parking' },
@@ -322,6 +329,16 @@ const answers: readonly Answer[] = [
 
 /** The one she gives when nothing in particular was asked. */
 export const answer: Answer = answers[0]!
+
+/**
+ * Everything she can be asked, in the order the chapters ask it.
+ *
+ * Recognition needs the vocabulary it is choosing between, which in a real
+ * agent is the language model's and here is this list. Exported rather than
+ * reached for through `answers` so the endpoint never sees the answers it is
+ * not yet entitled to.
+ */
+export const askableQuestions: readonly string[] = answers.map(entry => entry.question)
 
 /**
  * The answer to a question, matched on the question itself.

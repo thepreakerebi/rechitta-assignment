@@ -125,7 +125,10 @@ const ask = async () => {
     const answer = await $fetch<Answer>('/api/agent/ask', {
       method: 'POST',
       query: scenario.value,
-      body: { question: asked, projectSlug: session.value?.projectSlug ?? 'berkeley-square-north' },
+      body: {
+        projectSlug: session.value?.projectSlug ?? 'berkeley-square-north',
+        ask: { kind: 'text', question: asked },
+      },
     })
 
     state.value = answer.panels.length === 0

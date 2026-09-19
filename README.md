@@ -74,9 +74,56 @@ test counts `getUserMedia` calls on the briefing and expects zero.
 > to audio. This is a port of [Kaiyu Hsu's MIT-licensed Gradient Orb](https://uicapsule.com/ui/gradient-orb)
 > to raw WebGL2 — attribution in [`licenses/`](./licenses/gradient-orb.md).
 
+**The conversation, end to end.** Rechitta is a voice agent, so on the answer
+deck the whole loop runs rather than just the half of it that moves the orb.
+
+```
+capture → measure → POST /api/agent/ask → recognise → answer → speak
+ browser                                    server              browser
+```
+
+Press the microphone and the orb moves to your voice. Press it again and what
+was captured is **measured** — how long it was open, how much of that carried
+speech, the peak, and the mean energy in each of the three bands — and those
+five numbers are what get posted. **No audio leaves the browser.** The stream is
+analysed and released there, which is the promise the privacy screen makes; a
+test reads the request body and asserts there is nothing in it but the
+measurements.
+
+Recognition happens **behind the API**, where a transcription service would
+live in production, not in the browser. `server/mock/recognise.ts` stands in for
+one: it cannot understand, because it is handed no audio to understand, so it
+answers with one of the seven questions this project knows, chosen stably from
+the shape of the sound, with a confidence. **The words are a stand-in; the
+boundary, the failure modes and the confidence are not.** Swapping that file for
+a real service would not change a line of interface code.
+
+She then answers out loud — and only then. Arriving from a chapter's arrow or a
+shared link is reading, and reading should not start a recording of someone
+talking at you.
+
+> **Why her voice is a file.** `speechSynthesis` exposes no audio node and no
+> stream, so nothing can analyse what it says; an orb "reacting" to it could
+> only guess from word-boundary events. Her answers are pre-rendered and play
+> through `createMediaElementSource` into **the same `AnalyserNode` the
+> microphone uses** — so the orb moves to her voice by exactly the four numbers
+> it moves to yours. The clips are macOS `say` output, standing in for the TTS
+> vendor a production agent would call.
+
+Three outcomes, three different screens. A question she could not make out is a
+toast that leaves the answer already on screen alone; a question with no answer
+on file is the empty state; a dead connection is the error state with a way
+back. The question she heard is written into the URL, so a reload, a share or
+the back button all land on the answer being looked at.
+
 **Mock server.** Six Nitro routes: session, project, units, agent, viewing
 slots, booking. Every input is validated with Zod, and a slot taken between
 loading the form and submitting it returns a real 409.
+
+Asking is a **discriminated union** — a spoken question and a typed one are
+different requests, and neither branch can forget what it needs. An utterance's
+measurements are bounded on every field, because a measurement arriving from a
+client is still an input from a client.
 
 The agent answers **per question**. Each of the seven chapters carries its own,
 and each gets an answer with as many panels as the question earns — the opening
@@ -113,14 +160,25 @@ The design's smallest type — a 10px eyebrow, an 11px caption — is drawn on a
 400px artboard. Those floors are raised to 12 and 13; the larger steps are
 unchanged.
 
+One further departure, on the feed. The design fades the greeting's last line
+into the black along with the orb's lower half, so *"life's biggest decisions"*
+is drawn at perhaps 2:1 against its background. It is the first thing Rechitta
+says and it fails WCAG 1.4.3 by a wide margin. The gradient still takes the orb
+— that is what lets the orb read as half-swallowed by the page — but the words
+now sit above it at full white, which is 4.5:1 everywhere they fall. The
+greeting is also held at the comp's 12px rather than scaling with the frame:
+grown, its last line runs past the orb's face and onto bare black.
+
 ## Structure
 
 ```
 app/
   components/{deck,feed,orb,ui}/   panels · chapters · the WebGL orb · primitives
-  composables/                     microphone, API, mock scenario
+  composables/                     microphone, her voice, API, mock scenario
   utils/                           pure logic: formatting, orb maths, validation
-server/{api,mock}/                 six routes, the seed data, the state switch
+  ../public/audio/                 her seven answers, pre-rendered
+server/{api,mock}/                 six routes, the seed data, recognition, the
+                                   state switch
 shared/types/                      the domain, shared so the two sides cannot drift
 ```
 
@@ -128,7 +186,12 @@ Money is integer fils, never a float — 1.97M as a float is not 1.97M — and
 formatting happens at the edge. Panels are a discriminated union, so a panel
 carrying units cannot also claim to carry a schedule.
 
-**Tests:** 126 unit, 400+ end-to-end across Chromium (microphone granted and
+**Tests:** 149 unit, 405 end-to-end across Chromium (microphone granted and
 refused) and mobile Safari. They are written to be able to fail: the swipe tests
 drive real touch through the browser's input pipeline, because an earlier
-version dispatched synthetic events, passed, and did nothing on a phone.
+version dispatched synthetic events, passed, and did nothing on a phone. The
+voice loop is driven through Chromium's real capture device for the same
+reason — and it earned its keep immediately, catching that two seconds of
+speech were being measured as thirty-four milliseconds of it, because voicing
+was read from a mean across every bin the analyser has, most of them above
+8 kHz where a voice puts nothing.

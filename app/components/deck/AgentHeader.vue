@@ -2,6 +2,8 @@
 import TheOrb from '~/components/orb/TheOrb.vue'
 import { useMicAudio } from '~/composables/useMicAudio'
 import type { MicStatus } from '~/composables/useMicAudio'
+import type { OrbDriveSource } from '~/components/orb/TheOrb.vue'
+import type { Utterance } from '#shared/types/domain'
 
 /**
  * The persistent agent header: back, who is speaking, what she was asked, and
@@ -24,9 +26,31 @@ const props = defineProps<{
   backTo: string
   /** Focus the microphone on arrival, without opening it. */
   primed?: boolean
+  /** Rechitta's voice, while she has one. The orb draws whichever is live. */
+  voice?: OrbDriveSource
+  speaking?: boolean
+  /**
+   * What she said, in words, and only ever in reply to something spoken. It
+   * belongs in the header because the header is her turn in the conversation —
+   * who is speaking, what she was asked, what she answered — and because
+   * sharing one box is the only way the two stay aligned as the question wraps
+   * or a refusal pushes the header taller.
+   */
+  transcript?: string
+  /** Whether there is a recording of that answer to stop and start. */
+  hasVoice?: boolean
 }>()
 
-const emit = defineEmits<{ ask: [] }>()
+/**
+ * An utterance, or null when the microphone was open and nothing came through
+ * it. The page decides what that means; the header only reports it.
+ */
+const emit = defineEmits<{
+  ask: [utterance: Utterance | null]
+  /** The microphone is about to open, so anything still playing must stop. */
+  listen: []
+  replay: []
+}>()
 
 const mic = useMicAudio()
 const micButton = ref<HTMLButtonElement | null>(null)
@@ -71,13 +95,31 @@ const settled = computed(() =>
  */
 const toggle = async () => {
   if (listening.value) {
+    // Measured before the graph is torn down, and taken exactly once — the
+    // same utterance can never be sent twice.
+    const utterance = mic.takeUtterance()
     mic.stop()
-    return emit('ask')
+    return emit('ask', utterance)
   }
 
+  // She cannot still be talking into the microphone that is about to open.
+  emit('listen')
   await mic.start()
   attempted.value = true
 }
+
+/**
+ * Whose voice the orb is drawing.
+ *
+ * Yours while the microphone is open, hers while she is answering, and the idle
+ * drive between the two. Both sources have the same shape, so the orb never
+ * learns which one it has.
+ */
+const orbSource = computed<OrbDriveSource | undefined>(() => {
+  if (listening.value) return mic.readDrive
+  if (props.speaking) return props.voice
+  return undefined
+})
 
 onMounted(async () => {
   await mic.peekPermission()
@@ -130,7 +172,7 @@ onMounted(async () => {
       >
         <figure class="mic-orb">
           <TheOrb
-            :source="mic.readDrive"
+            :source="orbSource"
             :opacity="0.9"
           />
         </figure>
@@ -151,6 +193,29 @@ onMounted(async () => {
       id="mic-note"
       class="note"
     >{{ note }}</output>
+
+    <!-- Her reply in words, for anyone who cannot hear it, has the sound off,
+         or reads faster than she speaks. Present only once she has answered
+         something that was actually said to her. -->
+    <Transition name="spoken">
+      <section
+        v-if="transcript"
+        class="spoken"
+        aria-live="polite"
+      >
+        <q class="words">{{ transcript }}</q>
+
+        <!-- WCAG 1.4.2 asks for a way to stop sound that has started. It is
+             also the way to hear it again, which is the commoner need. -->
+        <button
+          v-if="hasVoice"
+          type="button"
+          class="sound"
+          :aria-pressed="speaking"
+          @click="emit('replay')"
+        >{{ speaking ? 'Stop' : 'Play again' }}</button>
+      </section>
+    </Transition>
   </header>
 </template>
 
@@ -273,6 +338,58 @@ onMounted(async () => {
 .mic[aria-pressed='true'] {
   outline: 2px solid var(--color-gold);
   outline-offset: -2px;
+}
+
+.spoken {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-block-start: 0.5rem;
+  padding-block-start: 0.5rem;
+  border-block-start: 1px solid var(--color-hairline);
+}
+
+.words {
+  flex: 1 1 14rem;
+  font-size: clamp(0.8125rem, 0.75rem + 0.25cqi, 1rem);
+  line-height: 1.55;
+  color: var(--color-text);
+  text-wrap: pretty;
+}
+
+/* Pulled out to the header's own edge, so its label lines up with the question
+   above rather than sitting a padding's width inside it. */
+.sound {
+  flex: 0 0 auto;
+  min-block-size: 2.75rem;
+  margin-inline-end: -0.5rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: var(--text-small);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: color var(--duration-quick) var(--ease-out-soft);
+}
+
+.sound:hover {
+  color: var(--color-text);
+}
+
+.spoken-enter-active,
+.spoken-leave-active {
+  transition:
+    opacity var(--duration-base) var(--ease-out-soft),
+    translate var(--duration-base) var(--ease-out-soft);
+}
+
+.spoken-enter-from,
+.spoken-leave-to {
+  opacity: 0;
+  translate: 0 -0.5rem;
 }
 
 .note {

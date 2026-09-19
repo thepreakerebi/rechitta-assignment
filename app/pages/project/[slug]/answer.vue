@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import AgentHeader from '~/components/deck/AgentHeader.vue'
 import AnswerPanel from '~/components/deck/AnswerPanel.vue'
-import type { Answer, Project, Session } from '#shared/types/domain'
+import TheToast from '~/components/ui/TheToast.vue'
+import { useAgentVoice } from '~/composables/useAgentVoice'
+import type { Answer, Project, Session, Utterance } from '#shared/types/domain'
 
 /**
  * 04 · The answer deck.
@@ -46,31 +48,110 @@ const answer = ref<Answer | null>(null)
 const pending = ref(true)
 const failed = ref(false)
 
-const ask = async (question: string | null) => {
+/** Her side of it, out loud. The orb in the header draws whichever voice is live. */
+const voice = useAgentVoice()
+
+/**
+ * Said when she could not make out the question.
+ *
+ * A toast rather than a state that takes the screen: the answer already there
+ * is still true, and replacing it would punish a question she failed to hear by
+ * taking away the one she did.
+ */
+const unheard = ref<string | null>(null)
+
+/**
+ * Whether the answer on screen is a reply to something spoken.
+ *
+ * She has a voice, but she is not a narrator: arriving from a chapter's arrow
+ * or a shared link is reading, and reading should not start a recording of
+ * someone talking at you. Only a question she was actually asked out loud is
+ * answered out loud — and only that answer puts her words in the header.
+ */
+const replying = ref(false)
+
+/**
+ * The two ways a question reaches her. Spoken and typed are different requests
+ * all the way down — the first has to be recognised before it can be answered —
+ * so they stay apart here rather than being flattened into a string.
+ */
+type Request =
+  | { readonly kind: 'text', readonly question: string }
+  | { readonly kind: 'utterance', readonly utterance: Utterance }
+
+/** 422 is the agent saying it could not make out the words, not a dead server. */
+const wasNotCaught = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'statusCode' in error
+  && (error as { statusCode?: number }).statusCode === 422
+
+const ask = async (request: Request) => {
   pending.value = true
   failed.value = false
+  unheard.value = null
+  replying.value = false
+  voice.silence()
 
   try {
-    answer.value = await $fetch<Answer>('/api/agent/ask', {
+    const heard = await $fetch<Answer>('/api/agent/ask', {
       method: 'POST',
       query: scenario.value,
       body: {
-        question: question ?? DEFAULT_QUESTION,
         projectSlug: session.value?.projectSlug ?? slug.value,
+        ask: request,
       },
     })
+
+    answer.value = heard
+    replying.value = request.kind === 'utterance'
+
+    /*
+     * The address describes what is on screen, including for a question nobody
+     * typed: the recognised words go into the URL so a reload, a share or the
+     * back button all land on this answer rather than on the default one.
+     */
+    if (request.kind === 'utterance' && heard.question !== asked.value) {
+      await router.replace({ query: { ...route.query, q: heard.question } })
+    }
+
+    // Out loud only in reply, and only when there is a recording of the reply.
+    if (replying.value && heard.voice) await voice.speak(heard.voice)
   }
-  catch {
+  catch (error) {
     // The server's own message is never surfaced; what is needed is the way on.
-    answer.value = null
-    failed.value = true
+    if (request.kind === 'utterance' && wasNotCaught(error)) {
+      unheard.value = 'Rechitta did not catch that. Ask again, a little closer to the microphone.'
+    }
+    else {
+      answer.value = null
+      failed.value = true
+    }
   }
   finally {
     pending.value = false
   }
 }
 
+/**
+ * Something was said. Null means the microphone was open and nothing came
+ * through it at all, which never reaches the agent — there is nothing to send.
+ */
+const askSpoken = (utterance: Utterance | null) => {
+  if (!utterance) {
+    unheard.value = 'Rechitta heard nothing. Check the microphone is the one you are speaking into.'
+    return
+  }
+
+  return ask({ kind: 'utterance', utterance })
+}
+
 const DEFAULT_QUESTION = 'What makes this the perfect first investment?'
+
+/** Play her answer again, or stop her saying it. */
+const replay = () => {
+  const src = answer.value?.voice
+  if (voice.isSpeaking.value) return voice.silence()
+  if (src) void voice.speak(src)
+}
 
 const panels = computed(() => answer.value?.panels ?? [])
 
@@ -158,16 +239,18 @@ const onKeydown = (event: KeyboardEvent) => {
   goTo(target)
 }
 
-/**
- * Asking again from the header replaces the question in the URL, so the answer
- * on screen is always the one the address describes — and a reload, a share or
- * the back button all land on the same thing.
- */
-const askAgain = () => router.replace({ query: { ...route.query, q: DEFAULT_QUESTION } })
-
 if (import.meta.client) useEventListener(document, 'keydown', onKeydown)
 
-watch(asked, question => ask(question), { immediate: true })
+/*
+ * The URL is what the screen follows. A spoken question writes the words it was
+ * recognised as back into it, so this would ask the same question a second time
+ * as text — the guard is what keeps one question to one answer.
+ */
+watch(asked, (question) => {
+  const wanted = question ?? DEFAULT_QUESTION
+  if (answer.value?.question === wanted) return
+  void ask({ kind: 'text', question: wanted })
+}, { immediate: true })
 watch(panels, () => {
   current.value = 0
   intent = 0
@@ -184,7 +267,20 @@ watch(panels, () => {
       :question="asked ?? DEFAULT_QUESTION"
       :back-to="briefing"
       :primed="primed"
-      @ask="askAgain"
+      :voice="voice.readDrive"
+      :speaking="voice.isSpeaking.value"
+      :transcript="replying ? answer?.transcript : undefined"
+      :has-voice="Boolean(answer?.voice)"
+      @ask="askSpoken"
+      @listen="voice.silence"
+      @replay="replay"
+    />
+
+    <!-- A question she could not make out leaves the answer already on screen
+         alone, and says so here instead. -->
+    <TheToast
+      :message="unheard"
+      tone="critical"
     />
 
     <!-- Thinking: the panel's own shape, so the answer arrives into its outline
@@ -211,7 +307,7 @@ watch(panels, () => {
         <button
           type="button"
           class="again"
-          @click="ask(asked)"
+          @click="ask({ kind: 'text', question: asked ?? DEFAULT_QUESTION })"
         >Try again</button>
         <NuxtLink
           class="away"

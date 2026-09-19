@@ -1,14 +1,15 @@
+import { VOICE_ENVELOPE, followEnvelope } from '~/utils/orb/bands'
 import {
-  BANDS,
-  VOICE_ENVELOPE,
-  bandBins,
-  bandEnergy,
-  followEnvelope,
-  shapeBand,
-} from '~/utils/orb/bands'
-import type { Band } from '~/utils/orb/bands'
+  EMPTY_TALLY,
+  FFT_SIZE,
+  readDriveFrom,
+  summarise,
+  tallyFrame,
+} from '~/utils/orb/analyse'
+import type { UtteranceTally } from '~/utils/orb/analyse'
 import { SILENT_DRIVE, clamp01, idleDrive, mixDrive } from '~/utils/orb/drive'
 import type { OrbDrive } from '~/utils/orb/drive'
+import type { Utterance } from '#shared/types/domain'
 
 /**
  * Every state the microphone can be in, as far as the interface is concerned.
@@ -24,16 +25,6 @@ export type MicStatus =
   | 'blocked'
   | 'unsupported'
   | 'unavailable'
-
-/** Speech is quiet and narrow after the analyser's mapping; lift it. */
-const SHAPING = {
-  bass: { gain: 2.2, floor: 0.06 },
-  mid: { gain: 2.6, floor: 0.05 },
-  treble: { gain: 3.4, floor: 0.03 },
-  level: { gain: 2.4, floor: 0.05 },
-} as const
-
-const FFT_SIZE = 2048
 
 /** Crossfade from the idle animation to live audio, in milliseconds. */
 const HANDOVER_MS = 900
@@ -70,6 +61,15 @@ export const useMicAudio = () => {
   let smoothed: OrbDrive = SILENT_DRIVE
   let lastReadAt = 0
   let listeningSince = 0
+
+  /**
+   * What this open microphone has added up to so far.
+   *
+   * Accumulated as the orb reads, because those frames have already been
+   * analysed — measuring the same audio twice would be a second pass over the
+   * spectrum sixty times a second for numbers already in hand.
+   */
+  let tally: UtteranceTally = EMPTY_TALLY
 
   /**
    * The live permission handle, kept so the interface can follow a decision made
@@ -178,6 +178,7 @@ export const useMicAudio = () => {
 
       spectrum = new Uint8Array(analyser.frequencyBinCount)
       lastReadAt = 0
+      tally = EMPTY_TALLY
       listeningSince = performance.now()
       status.value = 'listening'
     }
@@ -185,6 +186,25 @@ export const useMicAudio = () => {
       releaseGraph()
       status.value = isAbortLike(error) ? 'blocked' : 'unavailable'
     }
+  }
+
+  /**
+   * What was heard, as measurements — never as audio.
+   *
+   * Taken at the end of an utterance and cleared by the same call, so an
+   * utterance can only be sent once and a second question can never be answered
+   * with what was said for the first.
+   *
+   * Null when the microphone was open but nothing came through it: no frames,
+   * because permission was refused or the tab was hidden throughout.
+   */
+  const takeUtterance = (): Utterance | null => {
+    const spoken = tally
+    const openMs = listeningSince === 0 ? 0 : performance.now() - listeningSince
+    tally = EMPTY_TALLY
+
+    if (spoken.frames === 0) return null
+    return summarise(spoken, openMs)
   }
 
   const stop = () => {
@@ -204,20 +224,8 @@ export const useMicAudio = () => {
     const deltaMs = lastReadAt === 0 ? 16 : Math.min(now - lastReadAt, 100)
     lastReadAt = now
 
-    analyser.getByteFrequencyData(spectrum)
-
-    const { sampleRate } = analyser.context
-    const read = (band: Band, shaping: { gain: number, floor: number }) => {
-      const [start, end] = bandBins(band, sampleRate, FFT_SIZE)
-      return shapeBand(bandEnergy(spectrum, start, end), shaping.gain, shaping.floor)
-    }
-
-    const target: OrbDrive = {
-      bass: read(BANDS.bass, SHAPING.bass),
-      mid: read(BANDS.mid, SHAPING.mid),
-      treble: read(BANDS.treble, SHAPING.treble),
-      level: shapeBand(bandEnergy(spectrum, 0, spectrum.length), SHAPING.level.gain, SHAPING.level.floor),
-    }
+    const target = readDriveFrom(analyser, spectrum)
+    tally = tallyFrame(tally, target, deltaMs)
 
     smoothed = {
       bass: followEnvelope(smoothed.bass, target.bass, deltaMs, VOICE_ENVELOPE),
@@ -243,6 +251,7 @@ export const useMicAudio = () => {
     peekPermission,
     start,
     stop,
+    takeUtterance,
     readDrive,
   }
 }

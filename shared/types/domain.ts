@@ -114,10 +114,21 @@ export interface Metric {
  * carries units cannot also claim to carry an instalment schedule, and adding
  * a fourth kind is a compile error everywhere it must be handled.
  */
+type PanelBase = {
+  readonly id: string
+  /**
+   * What this panel is about, which is not the same as what shape it takes.
+   * Titled by kind, every grid of figures was called "Project overview" — over
+   * the commute times, over the yields, and over the amenity deck.
+   */
+  readonly title: string
+  readonly hero: Media
+}
+
 export type Panel =
-  | { readonly kind: 'stats', readonly id: string, readonly hero: Media, readonly metrics: readonly Metric[] }
-  | { readonly kind: 'units', readonly id: string, readonly hero: Media, readonly units: readonly Unit[] }
-  | { readonly kind: 'plans', readonly id: string, readonly hero: Media, readonly schedule: readonly Instalment[] }
+  | (PanelBase & { readonly kind: 'stats', readonly metrics: readonly Metric[] })
+  | (PanelBase & { readonly kind: 'units', readonly units: readonly Unit[] })
+  | (PanelBase & { readonly kind: 'plans', readonly schedule: readonly Instalment[] })
 
 export type PanelKind = Panel['kind']
 

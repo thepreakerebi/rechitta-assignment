@@ -20,11 +20,6 @@ defineProps<{
   total: number
 }>()
 
-const HEADING: Record<Panel['kind'], string> = {
-  stats: 'Project overview',
-  units: 'Available now',
-  plans: 'Payment plan',
-}
 </script>
 
 <template>
@@ -40,7 +35,7 @@ const HEADING: Record<Panel['kind'], string> = {
 
     <section class="foot">
       <h2 class="title">
-        {{ HEADING[panel.kind] }}
+        {{ panel.title }}
         <em class="visually-hidden">— {{ index }} of {{ total }}</em>
       </h2>
 
@@ -160,6 +155,14 @@ const HEADING: Record<Panel['kind'], string> = {
   inline-size: min(100%, 38rem);
   padding-inline: clamp(1rem, 6.5cqi, 3rem);
   padding-block-end: clamp(3.5rem, 12cqi, 5rem);
+  /*
+   * Anchored to the bottom and free to grow upward, which the payment schedule
+   * does: eight rows on a laptop put its title underneath the floating header
+   * and the panel read as untitled. The header is 4.125rem tall and sits a
+   * little under the top edge, so nothing may begin above that.
+   */
+  padding-block-start: calc(4.125rem + clamp(1.5rem, 5vh, 3.5rem));
+  max-block-size: 100%;
 }
 
 .title {

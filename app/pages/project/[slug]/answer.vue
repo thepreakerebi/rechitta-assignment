@@ -27,7 +27,6 @@ import type { Answer, Project, Session, Utterance } from '#shared/types/domain'
 const route = useRoute()
 const router = useRouter()
 const slug = computed(() => String(route.params.slug))
-const briefing = computed(() => `/project/${slug.value}`)
 
 const { data: project } = useApiFetch<Project>(() => `/api/projects/${slug.value}`, {
   key: `project-${slug.value}`,
@@ -56,6 +55,21 @@ const openAt = computed(() => {
   const panel = route.query.panel
   return typeof panel === 'string' ? panel : null
 })
+
+/**
+ * Back to the briefing, at the chapter this slide came from.
+ *
+ * Returning to the top of a seven-chapter scroll loses the place she left, so
+ * the chapter is named in the fragment and the feed lands on it. Derived from
+ * the panel rather than carried in the link: the chapters are already here,
+ * and a shared address stays the one thing it needs to be.
+ */
+const returning = computed(() =>
+  project.value?.chapters.find(chapter => chapter.panel === openAt.value)?.id ?? null)
+
+const briefing = computed(() => returning.value
+  ? `/project/${slug.value}#chapter-${returning.value}`
+  : `/project/${slug.value}`)
 
 const answer = ref<Answer | null>(null)
 const pending = ref(true)

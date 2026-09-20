@@ -34,19 +34,37 @@ test.describe('04 · Deck', () => {
     // opening answer is on screen all the same.
     await expect(asked(page)).toContainText(/mic to speak/i)
     await expect(asked(page).locator('q')).toHaveCount(0)
-    await expect(page.getByRole('heading', { level: 2, name: /Project overview/i })).toBeVisible()
-    await expect(panels(page)).toHaveCount(3)
+    await expect(page.getByRole('heading', { level: 2, name: /The overview/i })).toBeVisible()
+
+    // The opening question is the whole briefing: seven chapters, seven panels.
+    await expect(panels(page)).toHaveCount(7)
+    await expect(dots(page)).toHaveCount(7)
   })
 
-  test('counts the panels it has rather than always drawing three', async ({ page }) => {
-    // The comp draws two panels under three dots, which is the schedule missing
-    // rather than a miscount. A narrower question earns fewer.
+  test('titles every panel for what it is about, not for the shape it takes', async ({ page }) => {
+    await open(page)
+
+    /*
+     * Three shapes of panel are not three things to say. Titled by kind, every
+     * grid of figures read "Project overview" — over the commute times, over
+     * the yields, and over the amenity deck.
+     */
+    const titles = await page.locator('main .slide h2').allInnerTexts()
+
+    expect(titles).toHaveLength(7)
+    expect(new Set(titles).size).toBe(7)
+    expect(titles[2]).toMatch(/Location & connectivity/i)
+  })
+
+  test('counts the panels it has rather than always drawing seven', async ({ page }) => {
+    // A narrower question earns fewer: the schedule and the arithmetic behind
+    // it, not a tour of the gardens.
     await open(page, `${DECK}?q=${encodeURIComponent('How does the payment plan work?')}`)
 
     await expect(asked(page)).toContainText('How does the payment plan work?')
     await expect(panels(page)).toHaveCount(2)
     await expect(dots(page)).toHaveCount(2)
-    await expect(page.getByRole('heading', { level: 2, name: /Payment plan/i })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: /Pricing & payment/i })).toBeVisible()
   })
 
   test('answers each chapter’s own question, not one answer with seven doors', async ({ page }) => {
@@ -60,7 +78,9 @@ test.describe('04 · Deck', () => {
     for (const size of [PHONE, DESKTOP]) {
       await open(page, DECK, size)
 
-      const rows = await page.locator('main .tile').evaluateAll(tiles =>
+      // The first panel's own tiles: every panel is in the DOM at once, so an
+      // unscoped count measures seven panels' worth of rows.
+      const rows = await page.locator('main .slide:first-child .tile').evaluateAll(tiles =>
         [...new Set(tiles.map(tile => Math.round(tile.getBoundingClientRect().top)))].length)
 
       // Four figures, two rows of two, as the comp draws them. Left to fit
@@ -68,7 +88,7 @@ test.describe('04 · Deck', () => {
       // "AED 1.68M" over two lines — and the figures are the point.
       expect(rows, `at ${size.width}`).toBe(2)
 
-      const wraps = await page.locator('main .tile .value').evaluateAll(values =>
+      const wraps = await page.locator('main .slide .tile .value').evaluateAll(values =>
         values.filter((el) => {
           const line = Number.parseFloat(getComputedStyle(el).lineHeight)
           return el.getBoundingClientRect().height > line * 1.5
@@ -102,7 +122,7 @@ test.describe('04 · Deck · paging', () => {
     await open(page)
 
     await expect(dots(page).first()).toHaveAttribute('aria-current', 'true')
-    await expect(dots(page).first()).toHaveAccessibleName(/panel 1 of 3/i)
+    await expect(dots(page).first()).toHaveAccessibleName(/panel 1 of 7/i)
 
     await dots(page).nth(2).click()
     await expect.poll(() => showing(page)).toBe(2)
@@ -167,11 +187,14 @@ test.describe('04 · Deck · paging', () => {
     await page.keyboard.press('ArrowRight')
     await expect.poll(() => showing(page)).toBe(1)
 
+    // Derived, not written down: an answer's length is the mock's to decide.
+    const last = (await panels(page).count()) - 1
+
     await page.keyboard.press('End')
-    await expect.poll(() => showing(page)).toBe(2)
+    await expect.poll(() => showing(page)).toBe(last)
 
     await page.keyboard.press('ArrowRight')
-    await expect.poll(() => showing(page)).toBe(2)
+    await expect.poll(() => showing(page)).toBe(last)
 
     await page.keyboard.press('Home')
     await expect.poll(() => showing(page)).toBe(0)
@@ -229,7 +252,7 @@ test.describe('04 · Deck · states', () => {
 
     await expect(page.locator('main [aria-busy="true"] .skeleton')).toBeVisible()
     await expect(page.locator('main')).not.toContainText(/loading/i)
-    await expect(panels(page)).toHaveCount(3, { timeout: 20_000 })
+    await expect(panels(page)).toHaveCount(7, { timeout: 20_000 })
   })
 
   test('a failure keeps the header and offers both ways on', async ({ page }) => {

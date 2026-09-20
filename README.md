@@ -143,9 +143,16 @@ client is still an input from a client.
 
 The agent answers **per question**. Each of the seven chapters carries its own,
 and each gets an answer with as many panels as the question earns — the opening
-question earns all three, *"how does the payment plan work"* earns the schedule
-and the arithmetic behind it. Seven arrows into one answer would have made the
+question is the whole briefing, seven chapters and seven panels in the order the
+feed tells it, while *"how does the payment plan work"* earns the schedule and
+the arithmetic behind it. Seven arrows into one answer would have made the
 arrows decoration.
+
+The panels are held once and shared between the answers rather than written
+inside each, so the commute times exist in one place. Each carries its own
+title: titled by *kind*, every grid of figures read "Project overview" — over
+the commute times, over the yields, and over the amenity deck. Three shapes of
+panel are not three things to say.
 
 **Every state.** Skeletons in the shape of what is coming — never a spinner,
 never the word "Loading". Permission is treated as three outcomes (refused,

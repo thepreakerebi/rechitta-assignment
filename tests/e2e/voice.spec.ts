@@ -67,7 +67,7 @@ test.describe('04b · The agent endpoint', () => {
 
     // Recognised, not echoed: the client never sent any words to echo.
     expect(answer.question).toBe('What makes this the perfect first investment?')
-    expect(answer.panels).toHaveLength(3)
+    expect(answer.panels).toHaveLength(7)
     expect(answer.heard?.confidence).toBeGreaterThan(0)
   })
 

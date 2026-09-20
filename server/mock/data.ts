@@ -206,20 +206,99 @@ const HERO = {
   amenities: { src: '/images/amenities.jpg', alt: 'The podium gardens, fountains playing beside a children’s play area.' },
 } as const
 
-const statsPanel = (id: string, hero: Media, metrics: readonly Metric[]): Panel =>
-  ({ kind: 'stats', id: `panel-${id}`, hero, metrics })
+const statsPanel = (id: string, title: string, hero: Media, metrics: readonly Metric[]): Panel =>
+  ({ kind: 'stats', id: `panel-${id}`, title, hero, metrics })
+
+/**
+ * The seven panels, one per chapter of the briefing.
+ *
+ * Named and held here rather than written inside each answer, because the
+ * answers share them: the opening question earns all seven, and a narrower one
+ * earns the two or three that bear on it. Written inline, "what is nearby"
+ * and "what makes this a good first investment" would each carry their own
+ * copy of the commute times, and one of them would eventually be wrong.
+ *
+ * Each carries its own title. Titling by *kind* — every grid of figures called
+ * "Project overview" — put that heading above the commute times, above the
+ * yields, and above the amenity deck. Three shapes of panel are not three
+ * things to say.
+ */
+const PANEL = {
+  overview: statsPanel('overview', 'The overview', HERO.skyline, [
+    { id: 'entry', label: 'Investment from', value: 'AED 1.68M', detail: '2 bed · 1,489–2,300 sqft' },
+    { id: 'handover', label: 'Handover', value: 'Q3 2026', detail: '64% completed' },
+    { id: 'appreciation', label: 'Market appreciation', value: '+17.5%', detail: 'AED 2.2B in 2026 → 5.7B in 2031' },
+    { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: '2.2× 5-year appreciation' },
+  ]),
+
+  vision: statsPanel('vision', 'The vision', HERO.vision, [
+    { id: 'population', label: 'Planned population', value: '5.8M', detail: 'By 2040, from 3.5M today' },
+    { id: 'green', label: 'Public green space', value: '+105%', detail: 'Parks and nature reserves' },
+    { id: 'centres', label: 'Urban centres', value: '5', detail: 'JVC sits inside one of them' },
+    { id: 'commute', label: 'Within 20 minutes', value: '55%', detail: 'Of daily journeys, by 2040' },
+  ]),
+
+  location: statsPanel('location', 'Location & connectivity', HERO.location, [
+    { id: 'metro', label: 'Nearest metro', value: '8 min', detail: 'Dubai Internet City, by car' },
+    { id: 'marina', label: 'Dubai Marina', value: '12 min', detail: 'Via Sheikh Zayed Road' },
+    { id: 'airport', label: 'DXB airport', value: '25 min', detail: 'Al Khail Road most of the way' },
+    { id: 'schools', label: 'Schools within 10 min', value: '6', detail: 'Three rated Very Good or above' },
+  ]),
+
+  units: {
+    kind: 'units',
+    id: 'panel-units',
+    title: 'Available now',
+    hero: HERO.details,
+    units,
+  },
+
+  plans: {
+    kind: 'plans',
+    id: 'panel-plans',
+    title: 'Pricing & payment',
+    hero: HERO.pricing,
+    schedule: instalments,
+  },
+
+  returns: statsPanel('returns', 'Returns & investment', HERO.returns, [
+    { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: 'Gross, on current JVC rents' },
+    { id: 'appreciation', label: 'Market appreciation', value: '+17.5%', detail: 'AED 2.2B in 2026 → 5.7B in 2031' },
+    { id: 'multiple', label: 'Over five years', value: '2.2×', detail: 'On the entry price' },
+    { id: 'occupancy', label: 'JVC occupancy', value: '94%', detail: 'Twelve-month average' },
+  ]),
+
+  amenities: statsPanel('amenities', 'Amenities', HERO.amenities, [
+    { id: 'deck', label: 'Amenity deck', value: '1.2 acres', detail: 'Podium level, above the parking' },
+    { id: 'pool', label: 'Pools', value: '2', detail: 'Lap pool and a children’s pool' },
+    { id: 'gym', label: 'Gym', value: '24/7', detail: 'Technogym, 340 sqm' },
+    { id: 'retail', label: 'Retail below', value: '11 units', detail: 'Grocery, pharmacy, two cafés' },
+  ]),
+
+  /* Two that belong to one question each rather than to a chapter. */
+  specification: statsPanel('specification', 'The specification', HERO.overview, [
+    { id: 'sizes', label: 'Sizes', value: '1,489–2,300', detail: 'Square feet, two bedrooms' },
+    { id: 'ceilings', label: 'Ceiling height', value: '3.1m', detail: 'Floor to soffit' },
+    { id: 'finish', label: 'Kitchens', value: 'Pale oak', detail: 'Bosch appliances throughout' },
+    { id: 'parking', label: 'Parking', value: '2 bays', detail: 'Allocated, in the podium' },
+  ]),
+
+  arithmetic: statsPanel('arithmetic', 'What you would pay', HERO.skyline, [
+    { id: 'deposit', label: 'To reserve', value: 'AED 168K', detail: '10% of AED 1.68M' },
+    { id: 'during', label: 'During construction', value: '50%', detail: 'Five instalments of 10%' },
+    { id: 'handover', label: 'On handover', value: '40%', detail: 'Due Q3 2026' },
+    { id: 'fees', label: 'DLD fee', value: '4%', detail: 'Paid to the Land Department' },
+  ]),
+} as const satisfies Record<string, Panel>
 
 /**
  * One answer per chapter, because the feed's seven arrows each ask a different
  * question and an answer that ignored the question would make them decoration.
  *
- * The panel *kinds* stay the three the design draws — a grid of figures, a list
- * of units, a payment schedule — because those are the three shapes an answer
- * about a building takes. What changes is which of them a question earns: the
- * broad opening question earns all three, and "how does the payment plan work"
- * earns the schedule and the arithmetic behind it, not a tour of the gardens.
- * The deck's pager counts the panels it is given rather than always drawing
- * three, which is also why the comp shows three dots against two drawn panels.
+ * What changes between them is how much of the briefing the question earns. The
+ * opening question is the whole of it — seven chapters, seven panels, in the
+ * order the feed tells it — and "how does the payment plan work" earns the
+ * schedule and the arithmetic behind it, not a tour of the gardens.
  */
 const answers: readonly Answer[] = [
   {
@@ -227,15 +306,15 @@ const answers: readonly Answer[] = [
     question: 'What makes this the perfect first investment?',
     transcript: 'The perfect first investment is the one you can afford to hold. Here is the whole of it — the figures, what is left, and how you would pay for it.',
     voice: '/audio/ask-overview.m4a',
+    // The whole briefing, one panel per chapter, in the order it is told.
     panels: [
-      statsPanel('overview-stats', HERO.skyline, [
-        { id: 'entry', label: 'Investment from', value: 'AED 1.68M', detail: '2 bed · 1,489–2,300 sqft' },
-        { id: 'handover', label: 'Handover', value: 'Q3 2026', detail: '64% completed' },
-        { id: 'appreciation', label: 'Market appreciation', value: '+17.5%', detail: 'AED 2.2B in 2026 → 5.7B in 2031' },
-        { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: '2.2× 5-year appreciation' },
-      ]),
-      { kind: 'units', id: 'panel-overview-units', hero: HERO.returns, units },
-      { kind: 'plans', id: 'panel-overview-plans', hero: HERO.pricing, schedule: instalments },
+      PANEL.overview,
+      PANEL.vision,
+      PANEL.location,
+      PANEL.units,
+      PANEL.plans,
+      PANEL.returns,
+      PANEL.amenities,
     ],
   },
   {
@@ -243,87 +322,42 @@ const answers: readonly Answer[] = [
     question: 'What is Dubai 2040, and how does this fit into it?',
     transcript: 'Dubai 2040 is the city’s masterplan. Jumeirah Village Circle is one of the five centres it grows around, which is the short answer to why this plot exists.',
     voice: '/audio/ask-vision.m4a',
-    panels: [
-      statsPanel('vision', HERO.vision, [
-        { id: 'population', label: 'Planned population', value: '5.8M', detail: 'By 2040, from 3.5M today' },
-        { id: 'green', label: 'Public green space', value: '+105%', detail: 'Parks and nature reserves' },
-        { id: 'centres', label: 'Urban centres', value: '5', detail: 'JVC sits inside one of them' },
-        { id: 'commute', label: 'Within 20 minutes', value: '55%', detail: 'Of daily journeys, by 2040' },
-      ]),
-    ],
+    panels: [PANEL.vision],
   },
   {
     id: 'ask-location',
     question: 'What is nearby, and how long does it take to get there?',
     transcript: 'Jumeirah Village Circle sits between the two main arteries, which is why everything below is a drive rather than a journey.',
     voice: '/audio/ask-location.m4a',
-    panels: [
-      statsPanel('location', HERO.location, [
-        { id: 'metro', label: 'Nearest metro', value: '8 min', detail: 'Dubai Internet City, by car' },
-        { id: 'marina', label: 'Dubai Marina', value: '12 min', detail: 'Via Sheikh Zayed Road' },
-        { id: 'airport', label: 'DXB airport', value: '25 min', detail: 'Al Khail Road most of the way' },
-        { id: 'schools', label: 'Schools within 10 min', value: '6', detail: 'Three rated Very Good or above' },
-      ]),
-    ],
+    panels: [PANEL.location],
   },
   {
     id: 'ask-details',
     question: 'Show me what is actually available',
     transcript: 'Three units are unsold at the moment. The ground-floor one is the only one with its own pool.',
     voice: '/audio/ask-details.m4a',
-    panels: [
-      { kind: 'units', id: 'panel-details-units', hero: HERO.details, units },
-      statsPanel('details', HERO.overview, [
-        { id: 'sizes', label: 'Sizes', value: '1,489–2,300', detail: 'Square feet, two bedrooms' },
-        { id: 'ceilings', label: 'Ceiling height', value: '3.1m', detail: 'Floor to soffit' },
-        { id: 'finish', label: 'Kitchens', value: 'Pale oak', detail: 'Bosch appliances throughout' },
-        { id: 'parking', label: 'Parking', value: '2 bays', detail: 'Allocated, in the podium' },
-      ]),
-    ],
+    panels: [PANEL.units, PANEL.specification],
   },
   {
     id: 'ask-plans',
     question: 'How does the payment plan work?',
     transcript: 'Sixty per cent across construction, forty on handover. Three of the instalments are already behind you if you buy today.',
     voice: '/audio/ask-plans.m4a',
-    panels: [
-      { kind: 'plans', id: 'panel-plans-schedule', hero: HERO.pricing, schedule: instalments },
-      statsPanel('plans', HERO.skyline, [
-        { id: 'deposit', label: 'To reserve', value: 'AED 168K', detail: '10% of AED 1.68M' },
-        { id: 'during', label: 'During construction', value: '50%', detail: 'Five instalments of 10%' },
-        { id: 'handover', label: 'On handover', value: '40%', detail: 'Due Q3 2026' },
-        { id: 'fees', label: 'DLD fee', value: '4%', detail: 'Paid to the Land Department' },
-      ]),
-    ],
+    panels: [PANEL.plans, PANEL.arithmetic],
   },
   {
     id: 'ask-returns',
     question: 'What sort of return should I expect?',
     transcript: 'Twelve point seven three per cent gross, on current rents. The appreciation is the larger half of the answer.',
     voice: '/audio/ask-returns.m4a',
-    panels: [
-      statsPanel('returns', HERO.returns, [
-        { id: 'roi', label: 'Rental ROI', value: '12.73%', detail: 'Gross, on current JVC rents' },
-        { id: 'appreciation', label: 'Market appreciation', value: '+17.5%', detail: 'AED 2.2B in 2026 → 5.7B in 2031' },
-        { id: 'multiple', label: 'Over five years', value: '2.2×', detail: 'On the entry price' },
-        { id: 'occupancy', label: 'JVC occupancy', value: '94%', detail: 'Twelve-month average' },
-      ]),
-      { kind: 'plans', id: 'panel-returns-plans', hero: HERO.pricing, schedule: instalments },
-    ],
+    panels: [PANEL.returns, PANEL.plans],
   },
   {
     id: 'ask-amenities',
     question: 'What is it like to live here?',
     transcript: 'The podium is the answer to that. An acre and a bit of it, above the parking and below the flats.',
     voice: '/audio/ask-amenities.m4a',
-    panels: [
-      statsPanel('amenities', HERO.amenities, [
-        { id: 'deck', label: 'Amenity deck', value: '1.2 acres', detail: 'Podium level, above the parking' },
-        { id: 'pool', label: 'Pools', value: '2', detail: 'Lap pool and a children’s pool' },
-        { id: 'gym', label: 'Gym', value: '24/7', detail: 'Technogym, 340 sqm' },
-        { id: 'retail', label: 'Retail below', value: '11 units', detail: 'Grocery, pharmacy, two cafés' },
-      ]),
-    ],
+    panels: [PANEL.amenities],
   },
 ]
 

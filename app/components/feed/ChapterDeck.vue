@@ -24,6 +24,8 @@ import type { Chapter } from '#shared/types/domain'
 
 const props = defineProps<{ chapters: readonly Chapter[], slug: string }>()
 
+const route = useRoute()
+
 /**
  * Opening a chapter lands on its own slide of her answer.
  *
@@ -75,12 +77,115 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
   event.preventDefault()
   open(target)
 }
+
+/**
+ * Coming back from a chapter's slide, land on that chapter.
+ *
+ * The fragment names it. Stacked, the feed is one long scroll and the card is
+ * somewhere down it, so the page goes there — through the browser's own smooth
+ * scroll, which stops being smooth under prefers-reduced-motion without being
+ * asked. Squeezed into the accordion the card is already on screen, and what
+ * it means to land on it is to be the panel that is open.
+ */
+const returningTo = () => {
+  const named = /^#chapter-([\w-]+)$/.exec(route.hash)?.[1]
+  if (!named) return -1
+  return props.chapters.findIndex(chapter => chapter.id === named)
+}
+
+/**
+ * How far the element sits down the document, in layout terms.
+ *
+ * A bounding rect would say it in one line, but the page arrives under a
+ * transform and a transformed rect is half a rem out — which lands the card
+ * with its own top edge clipped.
+ */
+const documentTop = (element: HTMLElement) => {
+  let top = 0
+  let node: HTMLElement | null = element
+
+  while (node) {
+    top += node.offsetTop
+    node = node.offsetParent instanceof HTMLElement ? node.offsetParent : null
+  }
+
+  return top
+}
+
+/**
+ * Hold the card at the top of the screen while the rest of the page arrives.
+ *
+ * The greeting above it is still waiting on a name and on three typefaces, and
+ * both change its height after this scroll has started — which slides the card
+ * out from under itself by the best part of a hundred pixels. So the aim is
+ * corrected whenever the page moves underneath it, and every correction is
+ * another smooth scroll from wherever it has got to rather than a jump.
+ *
+ * It lets go at the first sign of her own hand, and in any case once the page
+ * has stopped changing shape. Nothing here should be able to fight a scroll.
+ */
+const follow = (panel: HTMLElement) => {
+  let aimedAt = -1
+
+  /*
+   * Named rather than left to the stylesheet's scroll-behaviour: not every
+   * engine reads that property for a scroll asked for in script, and one of
+   * them arrives at the card without having travelled.
+   */
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? 'auto'
+    : 'smooth'
+
+  const aim = () => {
+    const top = documentTop(panel)
+    if (top === aimedAt) return
+    aimedAt = top
+    window.scrollTo({ top, behavior })
+  }
+
+  const watching = new ResizeObserver(aim)
+  const hers = new AbortController()
+
+  release = () => {
+    watching.disconnect()
+    hers.abort()
+    clearTimeout(settling)
+  }
+
+  const settling = setTimeout(() => release?.(), 2000)
+
+  for (const gesture of ['wheel', 'touchstart', 'keydown']) {
+    window.addEventListener(gesture, () => release?.(), { signal: hers.signal, passive: true })
+  }
+
+  aim()
+  watching.observe(document.body)
+}
+
+/** Whatever is holding the card in place, so it is dropped with the screen. */
+let release: (() => void) | null = null
+onUnmounted(() => release?.())
+
+onMounted(async () => {
+  const index = returningTo()
+  const chapter = index < 0 ? null : props.chapters[index]
+  if (!chapter) return
+
+  // The accordion's answer to the same question: that panel, open.
+  active.value = index
+  await nextTick()
+
+  const panel = document.getElementById(`chapter-${chapter.id}`)
+  if (panel) follow(panel)
+})
+
 </script>
 
 <template>
   <ul class="deck">
     <li
       v-for="(chapter, index) in chapters"
+      :id="`chapter-${chapter.id}`"
       :key="chapter.id"
       class="panel"
       :class="{ 'is-open': index === active }"

@@ -459,3 +459,94 @@ test.describe('03 · Feed · layout', () => {
     }
   })
 })
+
+/**
+ * Leaving a chapter for its slide and coming back.
+ *
+ * The seam is the fragment on the back link. What landing means differs by
+ * shape: stacked, the card is somewhere down a long scroll and the page goes
+ * to it; squeezed, the card is already on screen and landing on it means
+ * being the panel that is open.
+ */
+test.describe('03 · Feed · returning from a chapter', () => {
+  const RETURNS = 'chapter-returns'
+
+  test('the back link names the chapter the slide came from', async ({ page }) => {
+    await open(page, `${FEED}/answer?panel=panel-returns`)
+
+    await expect(page.getByRole('link', { name: 'Back to the briefing' }).first())
+      .toHaveAttribute('href', `${FEED}#${RETURNS}`)
+  })
+
+  /**
+   * The scroll is the browser's own smooth one, so it is still moving when the
+   * page has otherwise settled. Waiting for it to stop is the difference
+   * between measuring where it landed and measuring where it was passing.
+   */
+  const settled = async (page: Page) => {
+    await expect.poll(async () => {
+      const first = await page.evaluate(() => window.scrollY)
+      await page.waitForTimeout(120)
+      const second = await page.evaluate(() => window.scrollY)
+      return first === second
+    }, { timeout: 10_000 }).toBe(true)
+  }
+
+  test('lands on that card rather than the top of the feed', async ({ page }) => {
+    await open(page, `${FEED}#${RETURNS}`)
+    await settled(page)
+
+    const landing = await page.evaluate((id) => {
+      const card = document.getElementById(id)
+      if (!card) return null
+      return { top: Math.round(card.getBoundingClientRect().top), scrolled: window.scrollY }
+    }, RETURNS)
+
+    expect(landing, 'the sixth chapter is in the feed').not.toBeNull()
+    // Flush with the top of the viewport, and a long way down the document —
+    // proving it is the card that was scrolled to and not the page as a whole.
+    expect(Math.abs(landing?.top ?? 999)).toBeLessThanOrEqual(2)
+    expect(landing?.scrolled ?? 0).toBeGreaterThan(0)
+  })
+
+  /**
+   * Asked of the code rather than of the engine: a headless browser may decide
+   * not to animate at all, and a test that measures the animation would then be
+   * testing which browser it is running in.
+   */
+  test('asks for the journey, not the destination', async ({ page }) => {
+    await page.addInitScript(() => {
+      const asked: string[] = []
+      Object.defineProperty(window, '__scrolls', { get: () => asked })
+      const original = window.scrollTo.bind(window)
+      window.scrollTo = ((options?: ScrollToOptions | number, top?: number) => {
+        if (typeof options === 'object' && options) asked.push(String(options.behavior))
+        return typeof options === 'number' ? original(options, top ?? 0) : original(options)
+      }) as typeof window.scrollTo
+    })
+
+    await open(page, `${FEED}#${RETURNS}`)
+    await settled(page)
+
+    const asked = await page.evaluate(() => [...(window as unknown as { __scrolls: string[] }).__scrolls])
+
+    expect(asked.length, 'the feed scrolled itself').toBeGreaterThan(0)
+    expect(asked.every(behavior => behavior === 'smooth'), `asked for ${asked.join(', ')}`).toBe(true)
+  })
+
+  test('opens that panel of the accordion instead, given the room', async ({ page }) => {
+    await open(page, `${FEED}#${RETURNS}`, DESKTOP)
+    await settled(page)
+
+    const openers = page.locator('main ul.deck > li > button')
+    await expect(openers.nth(5)).toHaveAttribute('aria-expanded', 'true')
+    await expect(openers.nth(0)).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  test('opens at the top, as it always did, when no chapter is named', async ({ page }) => {
+    await open(page, FEED)
+    await settled(page)
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  })
+})

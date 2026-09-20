@@ -24,9 +24,15 @@ import type { Chapter } from '#shared/types/domain'
 
 const props = defineProps<{ chapters: readonly Chapter[], slug: string }>()
 
-/** Opening a chapter asks its question, and lands on the answer. */
+/**
+ * Opening a chapter lands on its own slide of her answer.
+ *
+ * The deck is this briefing in full, so a chapter arrow is a way into the middle
+ * of it rather than a separate question. The panel is named in the address, so
+ * the slide survives a reload and can be shared.
+ */
 const answerTo = (chapter: Chapter) =>
-  `/project/${props.slug}/answer?q=${encodeURIComponent(chapter.question)}`
+  `/project/${props.slug}/answer?panel=${encodeURIComponent(chapter.panel)}`
 
 const active = ref(0)
 
@@ -186,8 +192,20 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
     border: 0;
   }
 
+  /*
+   * The opener covers the whole panel, which is what makes a narrow strip
+   * openable anywhere along it. On the panel that is already open it has
+   * nothing left to do, and it was swallowing every click meant for the card
+   * underneath — including the arrow into that chapter's slide, which on a
+   * desktop could not be pressed at all.
+   *
+   * Left in the document rather than removed: it still carries this chapter's
+   * aria-expanded and its place in the arrow-key walk, and both of those are
+   * keyboard concerns, which pointer-events does not touch.
+   */
   .panel.is-open .expand {
     cursor: default;
+    pointer-events: none;
   }
 
   /*

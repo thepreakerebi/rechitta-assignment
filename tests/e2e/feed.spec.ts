@@ -393,6 +393,23 @@ test.describe('03 · Feed · the accordion', () => {
     await expect(openers(page).nth(2)).toHaveAccessibleName(/chapter 3 of 7.*Jumeirah Village Circle/i)
   })
 
+  /*
+   * The opener lies across the whole panel so a narrow strip can be opened
+   * anywhere along it. Over the open panel it went on intercepting, and the
+   * arrow into that chapter's slide could not be pressed on a desktop at all.
+   */
+  test('the open panel’s own controls can be pressed, not just its opener', async ({ page }) => {
+    await open(page, FEED, DESKTOP)
+
+    await openers(page).nth(1).click()
+    await expect(openers(page).nth(1)).toHaveAttribute('aria-expanded', 'true')
+
+    const arrow = page.getByRole('link', { name: /Open Dubai 2040 in Rechitta/i })
+    await arrow.click()
+
+    await expect(page).toHaveURL(/\/answer\?panel=panel-vision/)
+  })
+
   test('the accordion does not exist on a phone', async ({ page }) => {
     await open(page, FEED)
 

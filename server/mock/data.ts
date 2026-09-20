@@ -63,6 +63,7 @@ export const project: Project = {
       metricValue: 'Q3 2026',
       hero: { src: '/images/overview.jpg', alt: 'The completed residences seen from the pool deck at midday.' },
       question: 'What makes this the perfect first investment?',
+      panel: 'panel-overview',
     },
     {
       id: 'vision',
@@ -72,6 +73,7 @@ export const project: Project = {
       metricValue: 'Sustainability',
       hero: { src: '/images/vision.jpg', alt: 'Aerial view of the masterplan, its parkland ringed by low-rise housing.' },
       question: 'What is Dubai 2040, and how does this fit into it?',
+      panel: 'panel-vision',
     },
     {
       id: 'location',
@@ -81,6 +83,7 @@ export const project: Project = {
       metricValue: 'Location',
       hero: { src: '/images/location.jpg', alt: 'A Dubai Metro train crossing the city on elevated track.' },
       question: 'What is nearby, and how long does it take to get there?',
+      panel: 'panel-location',
     },
     {
       id: 'details',
@@ -90,6 +93,7 @@ export const project: Project = {
       metricValue: '1,489 sqft',
       hero: { src: '/images/details.jpg', alt: 'A fitted kitchen in pale oak and matte grey, island in the foreground.' },
       question: 'Show me what is actually available',
+      panel: 'panel-units',
     },
     {
       id: 'plans',
@@ -99,6 +103,7 @@ export const project: Project = {
       metricValue: 'AED 2.8M',
       hero: { src: '/images/pricing.jpg', alt: 'A home office with a sculpted relief panel above the desk.' },
       question: 'How does the payment plan work?',
+      panel: 'panel-plans',
     },
     {
       id: 'returns',
@@ -108,6 +113,7 @@ export const project: Project = {
       metricValue: '12.73%',
       hero: { src: '/images/returns.jpg', alt: 'A living room at dusk, ring pendants over the media wall.' },
       question: 'What sort of return should I expect?',
+      panel: 'panel-returns',
     },
     {
       id: 'amenities',
@@ -119,6 +125,7 @@ export const project: Project = {
       metricValue: '1.2 acres',
       hero: { src: '/images/amenities.jpg', alt: 'The podium gardens, fountains playing beside a children’s play area.' },
       question: 'What is it like to live here?',
+      panel: 'panel-amenities',
     },
   ],
 }

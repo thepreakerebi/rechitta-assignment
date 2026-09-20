@@ -50,6 +50,16 @@ export interface Chapter {
    * either of them keeping a private list of the other's strings.
    */
   readonly question: string
+  /**
+   * The panel in her answer that *is* this chapter.
+   *
+   * The feed is the skim and the deck is the same briefing in full, so a
+   * chapter's arrow opens the deck at its own slide rather than at the front of
+   * it. Held as the panel's id, not as a position: the answer decides how many
+   * panels it has and in what order, and a number here would quietly point at
+   * the wrong one the first time that changed.
+   */
+  readonly panel: string
 }
 
 export interface Appreciation {

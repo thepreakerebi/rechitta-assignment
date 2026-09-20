@@ -44,6 +44,19 @@ const asked = computed(() => {
 
 const primed = computed(() => route.query.speak === '1')
 
+/**
+ * Which slide to open on, named in the address by a chapter's arrow.
+ *
+ * The panel's id rather than its position: the answer decides how many panels
+ * it has and in what order, and a number in a URL would point at the wrong one
+ * the first time that changed. An id that is not in this answer simply opens at
+ * the front, which is where a deck opens anyway.
+ */
+const openAt = computed(() => {
+  const panel = route.query.panel
+  return typeof panel === 'string' ? panel : null
+})
+
 const answer = ref<Answer | null>(null)
 const pending = ref(true)
 const failed = ref(false)
@@ -254,9 +267,32 @@ watch(asked, (question) => {
   if (answer.value?.question === wanted) return
   void ask({ kind: 'text', question: wanted })
 }, { immediate: true })
-watch(panels, () => {
+/**
+ * Open on the slide the address names, without animating through the ones
+ * before it — the track scrolls smoothly by default, and arriving at the
+ * amenities meant watching six panels go past first.
+ *
+ * The slide is asked to bring itself into view rather than the track being sent
+ * to a computed offset. That offset is a multiple of the track's own width, and
+ * WebKit had not settled on one this early: the scroll silently did nothing
+ * while the dots, set in the same breath, claimed it had worked.
+ */
+watch(panels, async (list) => {
   current.value = 0
   intent = 0
+
+  const index = openAt.value ? list.findIndex(panel => panel.id === openAt.value) : -1
+  if (index < 1 || !import.meta.client) return
+
+  await nextTick()
+  requestAnimationFrame(() => {
+    const slide = track.value?.children.item(index)
+    if (!(slide instanceof HTMLElement)) return
+
+    slide.scrollIntoView({ block: 'nearest', inline: 'start', behavior: 'instant' })
+    current.value = index
+    intent = index
+  })
 })
 </script>
 

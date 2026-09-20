@@ -103,7 +103,10 @@ between loading the form and submitting it returns a real 409. Asking is a
 discriminated union, so a spoken question and a typed one cannot be confused,
 and an utterance's measurements are bounded on every field.
 
-Each chapter carries its own question and earns as many panels as it deserves:
+A chapter's arrow opens the deck at that chapter's own slide, named in the
+address by the panel's id rather than its position, so the slide survives a
+reload and can be shared. Each chapter also carries its own question and earns
+as many panels as it deserves:
 the opening question is the whole briefing, seven chapters and seven panels,
 while *"how does the payment plan work"* earns the schedule and the arithmetic
 behind it. Panels are held once and shared between answers, each titled for what
@@ -151,7 +154,7 @@ shared/types/                      the domain, so the two sides cannot drift
 Money is integer fils, never a float — 1.97M as a float is not 1.97M. Panels are
 a discriminated union, so a panel carrying units cannot also claim a schedule.
 
-**Tests: 148 unit, 412 end-to-end** across Chromium (microphone granted and
+**Tests: 152 unit, 418 end-to-end** across Chromium (microphone granted and
 refused) and mobile Safari. They are written to be able to fail: the swipe tests
 drive real touch through the browser's input pipeline, and the voice loop runs
 against Chromium's real capture device — which immediately caught two seconds of

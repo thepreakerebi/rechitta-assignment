@@ -15,7 +15,7 @@ import type { Chapter } from '#shared/types/domain'
 
 defineProps<{
   chapter: Chapter
-  /** Where this chapter's question gets asked. */
+  /** This chapter's own slide of her answer. */
   answerTo: string
   /**
    * Where this sits in the sequence. The eyebrow does not say "third of
@@ -43,8 +43,8 @@ defineProps<{
       <hgroup class="flex min-w-0 flex-col gap-1">
         <!-- Valid hgroup content is paragraphs and one heading, which is
              exactly what this is: a mark, a kicker, and the title. -->
-        <!-- The arrow is the chapter's question, asked. The feed is the skim
-             and the deck is the detail; what joins them is a question. -->
+        <!-- The feed is the skim and the deck is the same briefing in full, so
+             the arrow opens the deck at this chapter rather than at its front. -->
         <p class="mb-1">
           <NuxtLink
             class="open grid size-[clamp(2.75rem,7cqi,3rem)] place-items-center rounded-pill border border-gold/30 transition-[background-color,transform] duration-(--duration-quick) hover:bg-gold-soft active:scale-95"
@@ -57,7 +57,7 @@ defineProps<{
               width="12"
               height="14"
             >
-            <em class="visually-hidden">Ask Rechitta: {{ chapter.question }}</em>
+            <em class="visually-hidden">Open {{ chapter.title }} in Rechitta’s answer</em>
           </NuxtLink>
         </p>
 

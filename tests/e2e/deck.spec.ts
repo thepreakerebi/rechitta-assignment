@@ -308,16 +308,27 @@ test.describe('04 · Deck · the microphone', () => {
 })
 
 test.describe('04 · Deck · the ways in', () => {
-  test('a chapter’s arrow asks that chapter’s question', async ({ page }) => {
+  test('a chapter’s arrow opens the deck at that chapter’s slide', async ({ page }) => {
     await page.setViewportSize(PHONE)
     await page.goto(FEED)
     await page.waitForLoadState('networkidle')
 
-    const arrow = page.getByRole('link', { name: /Ask Rechitta: How does the payment plan work/i })
-    await arrow.click()
+    await page.getByRole('link', { name: /Open The Plans in Rechitta/i }).click()
 
-    await expect(page).toHaveURL(/\/answer\?q=/)
-    await expect(asked(page)).toContainText('How does the payment plan work?')
+    await expect(page).toHaveURL(/\/answer\?panel=panel-plans/)
+    // The whole briefing is here, opened in the middle of it.
+    await expect(panels(page)).toHaveCount(7)
+    await expect(page.getByRole('heading', { level: 2, name: /Pricing & payment/i }))
+      .toBeInViewport()
+    await expect(dots(page).nth(4)).toHaveAttribute('aria-current', 'true')
+  })
+
+  test('opens at the front when the address names a slide this answer has not got', async ({ page }) => {
+    await open(page, `${DECK}?panel=panel-nonsense`)
+
+    // A deck opens at the front anyway; a bad name is not worth a failure.
+    await expect(dots(page).first()).toHaveAttribute('aria-current', 'true')
+    await expect(panels(page)).toHaveCount(7)
   })
 
   test('both discs lead to the conversation, one of them ready to speak', async ({ page }) => {
